@@ -1,28 +1,30 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { chips, cps, buildings, adState, thUnlocked, tapMultiplier, watchingAd, formatNumber, v2BuildingLevels, prestigePoints } from '$lib/stores';
-  import { loadGame, updateIdle, dealHand, startAdWatch, saveGame, startAutoSave, stopAutoSave, openBonus, getAdCooldown, formatCooldown, canReset, performReset } from '$lib/gameLogic';
-  import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus } from '$lib/v2';
+  import { chips, cps, buildings, adState, thUnlocked, tapMultiplier, watchingAd, formatNumber, v2BuildingLevels, prestigePoints, signingBonusTotal, initializeDebugMode, debugEnabled, slotsUnlocked } from '$lib/stores';
+  import { loadGame, updateIdle, dealHand, startAdWatch, saveGame, startAutoSave, stopAutoSave, openBonus, getAdCooldown, formatCooldown, canReset, performReset, startResetFlow } from '$lib/gameLogic';
+  import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus, type BuildingId } from '$lib/v2';
   import type { AdType } from '$lib/stores';
   import BonusModal from '../components/BonusModal.svelte';
   import AdWatcher from '../components/AdWatcher.svelte';
   import Building from '../components/Building.svelte';
+  import BuildingMeter from '../components/BuildingMeter.svelte';
+  import EmpireSlotsModal from '../components/EmpireSlotsModal.svelte';
   import Instructions from '../components/Instructions.svelte';
+  import ResetFlow from '../components/ResetFlow.svelte';
+  import DebugSuite from '../components/DebugSuite.svelte';
 
   let interval: ReturnType<typeof setInterval> | null = null;
   let offlineEarnings = 0;
   let showOfflineModal = false;
   let showInstructions = false;
-  let showResetModal = false;
   let showDebug = false;
-  let resetCountdown = 3;
-  let resetTimer: ReturnType<typeof setInterval> | null = null;
+  let showEmpireSlots = false;
   let toasts: { id: number; text: string }[] = [];
   let unlockSeen: Record<string, boolean> = {};
   let boostersOpen = false;
   let chipBump = false;
   let lastChipsValue = 0;
-  let floatingNumbers: { id: number; value: number; x: number; y: number }[] = [];
+  let floatingNumbers: { id: number; symbol: string; x: number; y: number }[] = [];
   
   // Header micro-animations (V204)
   let mascotBlink = false;
@@ -60,13 +62,10 @@
     setTimeout(() => mascotTilt = false, 200);
   }
   
-  // Handle deal button click with floating number
+  // Handle deal button click with floating currency symbols
   function handleDealClick(event: MouseEvent | TouchEvent) {
-    // Calculate chips earned (same logic as dealHand)
-    const multi = $tapMultiplier;
-    const base = 10 * multi;
-    const bonus = Math.floor(Math.random() * 50) + 1;
-    const total = base + bonus;
+    const symbols = ['\u00A3', '$', '\u20AC'];
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     
     // Add floating number at click position
     let clientX: number, clientY: number;
@@ -79,7 +78,7 @@
     }
     
     const id = Date.now() + Math.random();
-    floatingNumbers = [...floatingNumbers, { id, value: total, x: clientX, y: clientY }];
+    floatingNumbers = [...floatingNumbers, { id, symbol, x: clientX, y: clientY }];
     
     // Remove after animation
     setTimeout(() => {
@@ -112,8 +111,16 @@
     } catch {}
   }
 
+  // V501 unlock rule: unlock permanently at first Pro Dealer.
+  $: if (!$slotsUnlocked && ($v2BuildingLevels.ProDealers || 0) >= 1) {
+    slotsUnlocked.set(true);
+    pushToast('Your empire expands! Empire Slots unlocked \uD83C\uDFB0');
+    saveGame();
+  }
+
   onMount(() => {
     loadGame();
+    initializeDebugMode();
     startAutoSave();
     try {
       const seen = localStorage.getItem('poker_idle_instructions_seen');
@@ -179,9 +186,9 @@
   // Get ad button info
   function getAdButtonInfo(type: AdType) {
     const info: Record<AdType, { emoji: string; title: string; description: string }> = {
-      doubleTap: { emoji: '⚡', title: '2x Tap', description: '5 min' },
-      extraTable: { emoji: '🃏', title: '+1 Table', description: 'Instant' },
-      unlockTH: { emoji: '🎰', title: 'Unlock Bonus', description: 'Permanent' }
+      doubleTap: { emoji: '\u26A1', title: '2x Tap', description: '5 min' },
+      extraTable: { emoji: '\uD83C\uDCCF', title: '+1 Table', description: 'Instant' },
+      unlockTH: { emoji: '\uD83C\uDFB0', title: 'Unlock Bonus', description: 'Permanent' }
     };
     return info[type];
   }
@@ -200,16 +207,33 @@
     }
     lastChipsValue = $chips;
   }
+
+  function getBuildingMeterIcon(id: BuildingId): 'ProDealers' | 'CardShufflers' | 'TDs' | 'Sponsors' | 'BuildingExpansion' {
+    switch (id) {
+      case 'ProDealers':
+        return 'ProDealers';
+      case 'CardShufflers':
+        return 'CardShufflers';
+      case 'TDs':
+        return 'TDs';
+      case 'Sponsors':
+        return 'Sponsors';
+      case 'BuildingExpansion':
+        return 'BuildingExpansion';
+      default:
+        return 'ProDealers';
+    }
+  }
 </script>
 
 <!-- Offline Earnings Modal -->
 {#if showOfflineModal}
   <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
     <div class="bg-gray-800 rounded-xl p-6 max-w-sm w-full text-center border-2 border-yellow-500">
-      <div class="text-4xl mb-4">💤</div>
+      <div class="text-4xl mb-4">&#x1F4A4;</div>
       <h2 class="text-xl font-bold text-white mb-2">Welcome Back!</h2>
       <p class="text-gray-400 mb-4">While you were away, your tables earned:</p>
-      <div class="text-3xl font-bold text-yellow-400 mb-4">+{formatNumber(offlineEarnings)} 🎰</div>
+      <div class="text-3xl font-bold text-yellow-400 mb-4">+{formatNumber(offlineEarnings)} &#x1F3B0;</div>
       <button 
         on:click={closeOfflineModal}
         class="w-full py-3 px-4 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-bold"
@@ -238,7 +262,7 @@
         >
           <!-- Mascot with blink animation -->
           <div class="mascot-container relative" class:blink={mascotBlink}>
-            <span class="text-2xl sm:text-3xl drop-shadow-md filter">🃏</span>
+            <span class="text-2xl sm:text-3xl drop-shadow-md filter">&#x1F0CF;</span>
           </div>
           <!-- PP Brand with pulse animation -->
           <div class="pp-brand" class:pulse={ppPulse || isPremiumHand}>Poker Idle Empire</div>
@@ -247,9 +271,9 @@
         <!-- Chip Capsule (Right) - Extended with CPS display -->
         <div class="chip-capsule" class:bump={chipBump} class:sparkle={chipSparkle}>
           <span class="mr-1 text-xl relative flex-shrink-0">
-            🪙
+            &#x1FA99;
             {#if chipSparkle}
-              <span class="absolute -top-1 -right-1 text-xs animate-ping">✨</span>
+              <span class="absolute -top-1 -right-1 text-xs animate-ping">&#x2728;</span>
             {/if}
           </span>
           <div class="flex flex-col items-start leading-tight">
@@ -280,7 +304,7 @@
       <div class="container mx-auto px-4 pt-2 pb-1 max-w-md">
         <div class="flex justify-center gap-4 text-sm">
           <div class="text-yellow-400 font-bold animate-pulse">
-            ⚡ {$tapMultiplier}x TAP!
+            &#x26A1; {$tapMultiplier}x TAP!
           </div>
         </div>
       </div>
@@ -297,77 +321,72 @@
           on:click={handleDealClick}
           class="deal-btn"
         >
-          <span class="block text-5xl mb-1">🃏</span>
+          <span class="block text-5xl mb-1">&#x1F0CF;</span>
           DEAL
         </button>
       </div>
       
-      <!-- Floating Numbers -->
+      <!-- Floating currency symbols -->
       {#each floatingNumbers as num (num.id)}
         <div 
           class="fixed pointer-events-none z-50 text-2xl font-bold text-yellow-300 animate-float"
           style="left: {num.x}px; top: {num.y}px;"
         >
-          +{num.value}
+          {num.symbol}
         </div>
       {/each}
     </section>
 
-    <!-- Buildings -->
+    <!-- Buildings (Collapsible) -->
     <section class="mb-6">
-      <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        <span>🏢</span> Buildings
-      </h2>
-      {#each $buildings as building, i}
-        <Building {building} index={i} />
-      {/each}
-    </section>
+      <div class="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
+        <button
+          class="w-full px-3 py-2 flex items-center justify-between bg-gray-800 text-white text-sm"
+          on:click={() => boostersOpen = !boostersOpen}
+          aria-expanded={boostersOpen}
+        >
+          <div class="flex items-center gap-2">
+            <span>&#x1F3E2;</span>
+            <span class="font-bold">Buildings</span>
+          </div>
+          <span class="text-yellow-400">{boostersOpen ? '\u25B2' : '\u25BC'}</span>
+        </button>
+        {#if boostersOpen}
+          <div class="p-2 space-y-2 max-h-72 overflow-y-auto">
+            <!-- Individual Buildings (Poker Table, etc.) - Always shown -->
+            {#each $buildings as building, i}
+              <Building {building} index={i} />
+            {/each}
 
-    <!-- Boosters (Collapsible) -->
-    <section class="mb-6">
-      {#if tableCount < 2}
-        <div class="text-center">
-          <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-800 border border-gray-700 text-gray-300">
-            BOOSTERS unlock at Level 2
-          </span>
-        </div>
-      {:else}
-        <div class="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
-          <button
-            class="w-full px-3 py-2 flex items-center justify-between bg-gray-800 text-white text-sm"
-            on:click={() => boostersOpen = !boostersOpen}
-            aria-expanded={boostersOpen}
-          >
-            <div class="flex items-center gap-2">
-              <span>🧬</span>
-              <span class="font-bold">Boosters</span>
-            </div>
-            <span class="text-yellow-400">{boostersOpen ? '▲' : '▼'}</span>
-          </button>
-          {#if boostersOpen}
-            <div class="p-2 space-y-2 max-h-72 overflow-y-auto">
+            <!-- Unlock message for advanced buildings -->
+            {#if tableCount < 2}
+              <div class="text-center py-2">
+                <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-gray-700 border border-gray-600 text-gray-300">
+                  More buildings unlock at Level 2
+                </span>
+              </div>
+            {/if}
+
+            <!-- Advanced Buildings (V2 Buildings) - Only shown when tableCount >= 2 -->
+            {#if tableCount >= 2}
               {#each BUILDINGS as b}
                 {@const lvl = $v2BuildingLevels[b.id] || 0}
                 {@const unlocked = isUnlocked(b.id, $v2BuildingLevels, tableCount)}
                 {@const cost = levelCost(b.id, lvl)}
-                <div class="p-3 rounded-lg bg-gray-800 border flex items-center justify-between {unlocked && isFinite(cost) && $chips >= cost ? 'border-yellow-500' : 'border-gray-700'}">
-                  <div class="text-sm">
-                    <div class="font-bold text-white flex items-center gap-2">
-                      {#if unlocked}
-                        <span class="text-green-400">▲</span>
-                      {:else}
-                        <span class="text-gray-500">🔒</span>
-                      {/if}
-                      <span>{b.name}</span>
+                <div class="p-3 rounded-lg bg-gray-800 border {unlocked && isFinite(cost) && $chips >= cost ? 'border-yellow-500' : 'border-gray-700'}">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="font-bold text-white truncate">{b.name}</div>
+                    <div class="text-[11px] font-semibold text-green-300 whitespace-nowrap">
+                      +{(b.baseBoost * 100).toFixed(0)}% boost/lvl
                     </div>
-                    <div class="text-xs text-gray-400">{unlocked ? `Level ${lvl}` : 'Locked'}</div>
-                    {#if lvl > 300}
-                      <div class="text-[10px] text-red-400 mt-1">reduced ×1/2</div>
-                    {:else if lvl > 100}
-                      <div class="text-[10px] text-orange-400 mt-1">reduced ×1/1.5</div>
-                    {/if}
                   </div>
-                  <div class="flex items-center gap-2">
+                  <div class="mt-2 flex items-center justify-between gap-3">
+                    <div class="text-sm text-gray-300">
+                      Owned: <span class="text-white font-bold">{lvl}</span>
+                      {#if !unlocked}
+                        <span class="ml-1 text-xs text-gray-500">(Locked)</span>
+                      {/if}
+                    </div>
                     <button disabled={!unlocked || !isFinite(cost) || $chips < cost}
                       on:click={() => {
                         if (!unlocked) return;
@@ -377,37 +396,40 @@
                         v2BuildingLevels.set({ ...$v2BuildingLevels, [b.id]: lvl + 1 });
                         saveGame();
                       }}
-                      class="px-3 py-2 rounded bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500 text-xs"
+                      class="px-3 py-1.5 rounded bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500 text-xs whitespace-nowrap"
                     >{isFinite(cost) ? `Buy: ${formatNumber(cost)}` : 'Config Pending'}</button>
+                  </div>
+                  {#if lvl > 300}
+                    <div class="mt-1 text-[10px] text-red-400">reduced x1/2</div>
+                  {:else if lvl > 100}
+                    <div class="mt-1 text-[10px] text-orange-400">reduced x1/1.5</div>
+                  {/if}
+                  <div class="mt-3">
+                    <BuildingMeter owned={lvl} icon={getBuildingMeterIcon(b.id)} />
                   </div>
                 </div>
               {/each}
-              <div class="mt-1 text-xs text-gray-400 text-center">Prestige Multiplier: ×{prestigeMultiplier($prestigePoints).toFixed(2)}</div>
-            </div>
-          {/if}
-        </div>
-      {/if}
+            {/if}
+
+            <!-- Stats footer -->
+            <div class="mt-1 text-xs text-gray-400 text-center">Prestige Multiplier: x{prestigeMultiplier($prestigePoints).toFixed(2)}</div>
+            {#if $signingBonusTotal > 0}
+              <div class="mt-1 text-xs text-amber-400 text-center">Permanent Bonus: +{($signingBonusTotal).toFixed(1)}%</div>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </section>
 
     <!-- Reset System -->
-    {#if canReset()}
+    {#if canReset() || ($debugEnabled && $chips >= 1e12)}
       <section class="mb-6">
         <button
-          on:click={() => {
-            showResetModal = true;
-            resetCountdown = 3;
-            if (resetTimer) clearInterval(resetTimer);
-            resetTimer = setInterval(() => {
-              resetCountdown -= 1;
-              if (resetCountdown <= 0 && resetTimer) {
-                clearInterval(resetTimer);
-                resetTimer = null;
-              }
-            }, 1000);
-          }}
+          on:click={() => startResetFlow()}
+          style="touch-action: manipulation;"
           class="w-full py-3 bg-red-700 hover:bg-red-600 rounded-lg text-white font-bold border-2 border-red-400"
         >
-          Reset for Prestige
+          Escape & Relocate
         </button>
       </section>
     {/if}
@@ -435,10 +457,36 @@
       </section>
     {/if}
 
+    <!-- Bonus Round Button (only if unlocked) -->
+    {#if $thUnlocked}
+      <section class="mb-6">
+        <button
+          on:click={openBonus}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-yellow-600 to-yellow-800 hover:from-yellow-500 hover:to-yellow-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-yellow-400"
+        >
+          <span class="text-3xl block mb-1">&#x1F3B0;</span>
+          TEXAS HOLD'EM BONUS
+        </button>
+      </section>
+    {/if}
+
+    {#if $slotsUnlocked}
+      <section class="mb-6">
+        <button
+          on:click={() => { showEmpireSlots = true; }}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-yellow-600 to-yellow-800 hover:from-yellow-500 hover:to-yellow-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-yellow-400"
+        >
+          Empire Slots &#x1F3B0;
+        </button>
+      </section>
+    {/if}
+
     <!-- Ad Rewards -->
     <section class="mb-6">
       <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
-        <span>📺</span> Ad Rewards
+        <span>&#x1F4FA;</span> Ad Rewards
       </h2>
       <div class="grid grid-cols-3 gap-2">
         {#each adTypes as adType}
@@ -449,32 +497,20 @@
           <button
             on:click={() => handleAdClick(adType)}
             disabled={!ad.available || isLocked}
+            style="touch-action: manipulation;"
             class="p-3 rounded-lg text-center transition-colors {ad.available && !isLocked
-              ? 'bg-gray-700 hover:bg-gray-600 border border-yellow-500/50' 
+              ? 'bg-gray-700 hover:bg-gray-600 border border-yellow-500/50'
               : 'bg-gray-800 border border-gray-700'}"
           >
             <div class="text-2xl mb-1">{info.emoji}</div>
             <div class="text-xs font-bold text-white">{info.title}</div>
             <div class="text-xs {ad.available ? 'text-green-400' : 'text-gray-500'}">
-              {isLocked ? '✓ Unlocked' : (ad.available ? info.description : formatCooldown(cooldown))}
+              {isLocked ? 'Unlocked' : (ad.available ? info.description : formatCooldown(cooldown))}
             </div>
           </button>
         {/each}
       </div>
     </section>
-
-    <!-- Bonus Round Button (only if unlocked) -->
-    {#if $thUnlocked}
-      <section class="mb-6">
-        <button
-          on:click={openBonus}
-          class="w-full py-4 bg-gradient-to-b from-yellow-600 to-yellow-800 hover:from-yellow-500 hover:to-yellow-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-yellow-400"
-        >
-          <span class="text-3xl block mb-1">🎰</span>
-          TEXAS HOLD'EM BONUS
-        </button>
-      </section>
-    {/if}
 
   </div>
 </main>
@@ -482,28 +518,10 @@
 <!-- Modals -->
 <BonusModal />
 <AdWatcher />
-{#if showResetModal}
-  <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-    <div class="bg-gray-900 rounded-xl p-6 max-w-sm w-full text-center border-2 border-red-500">
-      <h2 class="text-xl font-bold text-white mb-2">Reset for Prestige?</h2>
-      <div class="text-left text-sm text-gray-200 mb-4 space-y-1">
-        <div>Current prestige: <span class="font-bold">{$prestigePoints}</span></div>
-        <div>Current multiplier: <span class="font-bold">×{prestigeMultiplier($prestigePoints).toFixed(2)}</span></div>
-        <div>After reset prestige: <span class="font-bold">{$prestigePoints + 1}</span></div>
-        <div>New multiplier: <span class="font-bold">×{prestigeMultiplier($prestigePoints + 1).toFixed(2)}</span></div>
-        <div>Signing bonus now: <span class="font-bold">{(signingBonus($prestigePoints) * 100).toFixed(1)}%</span></div>
-        <div>Signing bonus after: <span class="font-bold">{(signingBonus($prestigePoints + 1) * 100).toFixed(1)}%</span> (cap 50%)</div>
-      </div>
-      <div class="flex gap-2">
-        <button class="flex-1 py-3 rounded bg-gray-700 text-white" on:click={() => showResetModal = false}>Cancel</button>
-        <button class="flex-1 py-3 rounded bg-red-700 text-white disabled:bg-red-900 disabled:text-gray-400"
-          disabled={resetCountdown > 0}
-          on:click={() => { performReset(); showResetModal = false; }}>
-          {resetCountdown > 0 ? `Hold ${resetCountdown}s` : 'Confirm Reset'}
-        </button>
-      </div>
-    </div>
-  </div>
+<ResetFlow />
+<DebugSuite />
+{#if showEmpireSlots}
+  <EmpireSlotsModal on:close={() => { showEmpireSlots = false; }} />
 {/if}
 
 <!-- Toasts -->
@@ -720,5 +738,32 @@
       opacity: 0;
       transform: translate(-50%, -60px) scale(1.2);
     }
+  }
+
+  /* iOS magnifier fix - disable double-tap zoom */
+  button, [role="button"] {
+    -webkit-user-callout: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Ensure all interactive elements prevent iOS zoom */
+  input, textarea, select, button, [onclick], [role="button"] {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Remove text selection on tap */
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Allow text selection where needed */
+  p, span, div:not([role="button"]) {
+    -webkit-user-select: text;
+    user-select: text;
   }
 </style>

@@ -71,3 +71,84 @@ export const v2BuildingLevels = writable<Record<V2BuildingId, number>>({
 
 export const prestigePoints = writable(0);
 export const uiMode = writable<'accordion' | 'tree'>('accordion');
+
+// V501 Empire Slots
+export type SlotsMode = 'low' | 'high';
+export const slotsUnlocked = writable(false);
+export const slotsMode = writable<SlotsMode>('high');
+
+// V301 Reset Flow State
+export type EscapeMethod = 'relocation' | 'identity' | 'run';
+
+export interface WheelOutcome {
+  name: string;
+  multiplier: number;
+}
+
+export interface WheelHistoryEntry {
+  method: EscapeMethod;
+  multiplier: number;
+  timestamp: number;
+}
+
+export const lastEscapeMethod = writable<EscapeMethod | null>(null);
+export const lastOutcome = writable<WheelOutcome | null>(null);
+export const wheelHistory = writable<WheelHistoryEntry[]>([]);
+export const signingBonusTotal = writable(0); // Cumulative permanent bonus (stored as percentage points, e.g., 22.5)
+
+// Transient UI state (reset per flow)
+export const resetFlowActive = writable(false);
+export const resetFlowStage = writable<1 | 2 | 3>(1); // 1=method selection, 2=wheel spin, 3=results
+export const selectedMethod = writable<EscapeMethod | null>(null);
+export const spinResult = writable<WheelOutcome | null>(null);
+export const canReSpin = writable(true);
+
+// ============================================
+// V302 DEBUG SUITE STATE (Transient Only)
+// ============================================
+// CRITICAL: This state is NEVER persisted to localStorage
+// All debug actions are temporary and cleared on reload
+
+export const debugEnabled = writable(false); // Set via environment or query param
+
+export interface DebugState {
+  lastCashInjection: number; // Amount added (for UI feedback)
+  lastLevelUpBuilding: string | null; // Which building was tested
+
+  wheelTestResult: {
+    method: EscapeMethod;
+    outcome: WheelOutcome;
+    multiplier: number;
+    baseBonus: number;
+    finalBonus: number;
+    resetCount: number;
+  } | null;
+  wheelTestHistory: Array<{ method: EscapeMethod; outcome: WheelOutcome; timestamp: number }>;
+
+  resetFlowSnapshot: {
+    stage: 1 | 2 | 3;
+    method: EscapeMethod | null;
+    outcome: WheelOutcome | null;
+    canReSpin: boolean;
+  } | null;
+  resetFlowForceMultiplier: number | null; // Force specific multiplier in test
+
+  inspectorView: 'compact' | 'full' | 'json';
+}
+
+export const debugState = writable<DebugState>({
+  lastCashInjection: 0,
+  lastLevelUpBuilding: null,
+  wheelTestResult: null,
+  wheelTestHistory: [],
+  resetFlowSnapshot: null,
+  resetFlowForceMultiplier: null,
+  inspectorView: 'compact'
+});
+
+// Initialize debug mode from environment or query param
+export function initializeDebugMode(): void {
+  const isEnvDebug = import.meta.env.VITE_DEBUG === 'true';
+  const isQueryDebug = typeof window !== 'undefined' && window.location.search.includes('debug=1');
+  debugEnabled.set(isEnvDebug || isQueryDebug);
+}
