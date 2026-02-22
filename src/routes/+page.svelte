@@ -1,14 +1,61 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { chips, cps, buildings, adState, thUnlocked, tapMultiplier, watchingAd, formatNumber, v2BuildingLevels, prestigePoints, signingBonusTotal, initializeDebugMode, debugEnabled, slotsUnlocked } from '$lib/stores';
-  import { loadGame, updateIdle, dealHand, startAdWatch, saveGame, startAutoSave, stopAutoSave, openBonus, getAdCooldown, formatCooldown, canReset, performReset, startResetFlow } from '$lib/gameLogic';
+  import {
+    chips,
+    cps,
+    aceTokens,
+    buildings,
+    adState,
+    thUnlocked,
+    tapMultiplier,
+    formatNumber,
+    v2BuildingLevels,
+    prestigePoints,
+    signingBonusTotal,
+    initializeDebugMode,
+    debugEnabled,
+    slotsUnlocked,
+    setChaseAceUnlocked,
+    openChaseAce,
+    autoTapperUnlocked,
+    autoTapperEnabled,
+    currentThemeIndex,
+    chaseAceState,
+    personalityToasts,
+    rouletteUnlocked
+  } from '$lib/stores';
+  import {
+    loadGame,
+    updateIdle,
+    dealHand,
+    startAdWatch,
+    saveGame,
+    startAutoSave,
+    stopAutoSave,
+    openBonus,
+    getAdCooldown,
+    formatCooldown,
+    canReset,
+    performReset,
+    startResetFlow,
+    markDailyOpenApp,
+    recordDailyTap,
+    markDailyChaseAceSpin,
+    markDailyRouletteSpin,
+    setTurboTapperEnabled,
+    syncThemeFromProgress
+  } from '$lib/gameLogic';
   import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus, type BuildingId } from '$lib/v2';
+  import { CHASE_ACE_CARD_SHUFFLERS_UNLOCK_LEVEL } from '$lib/chaseAceConfig';
   import type { AdType } from '$lib/stores';
   import BonusModal from '../components/BonusModal.svelte';
   import AdWatcher from '../components/AdWatcher.svelte';
   import Building from '../components/Building.svelte';
   import BuildingMeter from '../components/BuildingMeter.svelte';
   import EmpireSlotsModal from '../components/EmpireSlotsModal.svelte';
+  import ChaseAceModal from '../components/ChaseAceModal.svelte';
+  import Roulette from '../components/Roulette.svelte';
+  import DailyRewardSheet from '../components/DailyRewardSheet.svelte';
   import Instructions from '../components/Instructions.svelte';
   import ResetFlow from '../components/ResetFlow.svelte';
   import DebugSuite from '../components/DebugSuite.svelte';
@@ -19,12 +66,21 @@
   let showInstructions = false;
   let showDebug = false;
   let showEmpireSlots = false;
+  let showRoulette = false;
+  let showDailySheet = false;
+  let chaseAceUnlockedByBuilding = false;
+  let themeClass = 'theme-garage';
+  let previousTurboUnlocked = false;
+  let turboToastReady = false;
+  let chaseHookReady = false;
+  let lastChaseResolvedAt = 0;
   let toasts: { id: number; text: string }[] = [];
   let unlockSeen: Record<string, boolean> = {};
   let boostersOpen = false;
   let chipBump = false;
   let lastChipsValue = 0;
   let floatingNumbers: { id: number; symbol: string; x: number; y: number }[] = [];
+  let appToastHandler: ((event: Event) => void) | null = null;
   
   // Header micro-animations (V204)
   let mascotBlink = false;
@@ -87,6 +143,7 @@
     
     // Also trigger the actual deal
     dealHand();
+    recordDailyTap(1);
   }
   
   // Check if current hand is a premium hand (for PP pulse)
@@ -99,6 +156,25 @@
     setTimeout(() => {
       toasts = toasts.filter((t) => t.id !== id);
     }, 2500);
+  }
+
+  function getThemeClass(index: number): string {
+    switch (index) {
+      case 1:
+        return 'theme-casino';
+      case 2:
+        return 'theme-highroller';
+      case 3:
+        return 'theme-vip';
+      case 4:
+        return 'theme-backalley';
+      default:
+        return 'theme-garage';
+    }
+  }
+
+  function toggleTurboTapper() {
+    setTurboTapperEnabled(!$autoTapperEnabled);
   }
 
   $: if ($prestigePoints === 1) {
@@ -118,10 +194,46 @@
     saveGame();
   }
 
+  $: chaseAceUnlockedByBuilding = ($v2BuildingLevels.CardShufflers || 0) >= CHASE_ACE_CARD_SHUFFLERS_UNLOCK_LEVEL;
+  $: setChaseAceUnlocked(chaseAceUnlockedByBuilding);
+  $: if ($v2BuildingLevels) {
+    syncThemeFromProgress();
+  }
+  $: themeClass = getThemeClass($currentThemeIndex);
+  $: if (turboToastReady) {
+    if (!previousTurboUnlocked && $autoTapperUnlocked) {
+      pushToast('Turbo Tapper activated - 2 taps/sec.');
+    }
+    previousTurboUnlocked = $autoTapperUnlocked;
+  }
+  $: if (
+    chaseHookReady &&
+    $chaseAceState.phase === 'result' &&
+    $chaseAceState.lastResolvedAt > 0 &&
+    $chaseAceState.lastResolvedAt !== lastChaseResolvedAt
+  ) {
+    lastChaseResolvedAt = $chaseAceState.lastResolvedAt;
+    markDailyChaseAceSpin();
+  }
+  $: if (!$rouletteUnlocked) {
+    showRoulette = false;
+  }
+
   onMount(() => {
     loadGame();
+    markDailyOpenApp();
     initializeDebugMode();
     startAutoSave();
+    previousTurboUnlocked = $autoTapperUnlocked;
+    turboToastReady = true;
+    lastChaseResolvedAt = $chaseAceState.lastResolvedAt;
+    chaseHookReady = true;
+    appToastHandler = (event: Event) => {
+      const detail = (event as CustomEvent<{ text?: string }>).detail;
+      if (!detail?.text) return;
+      pushToast(detail.text);
+    };
+    window.addEventListener('appToast', appToastHandler);
     try {
       const seen = localStorage.getItem('poker_idle_instructions_seen');
       if (seen !== '1') showInstructions = true;
@@ -173,6 +285,10 @@
   onDestroy(() => {
     stopAutoSave();
     if (interval) clearInterval(interval);
+    if (appToastHandler) {
+      window.removeEventListener('appToast', appToastHandler);
+      appToastHandler = null;
+    }
     saveGame(); // Final save on exit
   });
 
@@ -248,7 +364,7 @@
   <Instructions on:close={() => (showInstructions = false)} />
 {/if}
 
-<main class="min-h-screen bg-gradient-to-b from-green-900 to-gray-900 pb-20">
+<main class="min-h-screen pb-20 theme-main {themeClass}">
   <!-- Premium Header (V204) - Glass Effect + Gold Gradient -->
   <header class="sticky top-0 z-40 header-glass">
     <div class="container mx-auto max-w-md">
@@ -269,23 +385,49 @@
         </button>
         
         <!-- Chip Capsule (Right) - Extended with CPS display -->
-        <div class="chip-capsule" class:bump={chipBump} class:sparkle={chipSparkle}>
-          <span class="mr-1 text-xl relative flex-shrink-0">
-            &#x1FA99;
-            {#if chipSparkle}
-              <span class="absolute -top-1 -right-1 text-xs animate-ping">&#x2728;</span>
-            {/if}
-          </span>
-          <div class="flex flex-col items-start leading-tight">
-            <span class="chip-counter">{formatNumber($chips)}</span>
-            {#if $cps > 0}
-              <span class="text-[10px] text-green-700 font-semibold">+{$cps}/s</span>
-            {/if}
+        <div class="flex flex-col items-end gap-1">
+          <div class="chip-capsule" class:bump={chipBump} class:sparkle={chipSparkle}>
+            <span class="mr-1 text-xl relative flex-shrink-0">
+              &#x1FA99;
+              {#if chipSparkle}
+                <span class="absolute -top-1 -right-1 text-xs animate-ping">&#x2728;</span>
+              {/if}
+            </span>
+            <div class="flex flex-col items-start leading-tight">
+              <span class="chip-counter">{formatNumber($chips)}</span>
+              {#if $cps > 0}
+                <span class="text-[10px] text-green-700 font-semibold">+{$cps}/s</span>
+              {/if}
+            </div>
           </div>
+          <div
+            class="ace-token-pill"
+            title="Ace Tokens - rare, long-term progression currency."
+          >
+            <span class="mr-1">&#x1F0A1;</span>
+            <span class="font-bold">{formatNumber($aceTokens)}</span>
+          </div>
+          <button
+            class="daily-toggle-btn"
+            class:active={showDailySheet}
+            on:click={() => { showDailySheet = !showDailySheet; }}
+            aria-label="Toggle Daily Reward Sheet"
+            aria-expanded={showDailySheet}
+            title="Daily Reward Sheet"
+          >
+            &#x1F4C5; Daily
+          </button>
         </div>
       </div>
     </div>
     <div class="h-px w-full divider-gold"></div>
+    {#if showDailySheet}
+      <div class="header-daily-panel">
+        <div class="container mx-auto px-3 pb-3 max-w-md">
+          <DailyRewardSheet inHeader={true} />
+        </div>
+      </div>
+    {/if}
   </header>
 
   <!-- Floating Help button (kept outside header per V204) -->
@@ -320,10 +462,21 @@
         <button
           on:click={handleDealClick}
           class="deal-btn"
+          class:turbo-active={$autoTapperUnlocked && $autoTapperEnabled}
         >
           <span class="block text-5xl mb-1">&#x1F0CF;</span>
           DEAL
         </button>
+        {#if $autoTapperUnlocked}
+          <button
+            on:click={toggleTurboTapper}
+            class="turbo-toggle-btn"
+            aria-label="Toggle Turbo Tapper"
+            title="Turbo Tapper"
+          >
+            &#x2699; Turbo Tapper: {$autoTapperEnabled ? 'ON' : 'OFF'}
+          </button>
+        {/if}
       </div>
       
       <!-- Floating currency symbols -->
@@ -336,7 +489,6 @@
         </div>
       {/each}
     </section>
-
     <!-- Buildings (Collapsible) -->
     <section class="mb-6">
       <div class="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
@@ -483,6 +635,30 @@
       </section>
     {/if}
 
+    {#if chaseAceUnlockedByBuilding}
+      <section class="mb-6">
+        <button
+          on:click={() => { openChaseAce(); }}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-yellow-600 to-yellow-800 hover:from-yellow-500 hover:to-yellow-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-yellow-400"
+        >
+          Chase the Ace
+        </button>
+      </section>
+    {/if}
+
+    {#if $rouletteUnlocked}
+      <section class="mb-6">
+        <button
+          on:click={() => { showRoulette = true; }}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-yellow-600 to-yellow-800 hover:from-yellow-500 hover:to-yellow-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-yellow-400"
+        >
+          Roulette
+        </button>
+      </section>
+    {/if}
+
     <!-- Ad Rewards -->
     <section class="mb-6">
       <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
@@ -523,6 +699,22 @@
 {#if showEmpireSlots}
   <EmpireSlotsModal on:close={() => { showEmpireSlots = false; }} />
 {/if}
+<ChaseAceModal />
+{#if $rouletteUnlocked}
+  <Roulette
+    open={showRoulette}
+    on:close={() => { showRoulette = false; }}
+    on:spinComplete={() => { markDailyRouletteSpin(); }}
+  />
+{/if}
+
+<div class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-[90%] max-w-md">
+  {#each $personalityToasts as toast (toast.id)}
+    <div class="personality-toast text-center">
+      {toast.text}
+    </div>
+  {/each}
+</div>
 
 <!-- Toasts -->
 <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 space-y-2 w-[90%] max-w-sm">
@@ -565,6 +757,8 @@
     position: absolute;
     left: 50%;
     top: 50%;
+    isolation: isolate;
+    overflow: visible;
     transform: translate(-50%, -50%);
     background: linear-gradient(180deg, #ffd766, #e3a81b);
     color: #1b1303;
@@ -584,6 +778,184 @@
   .deal-btn:active {
     transform: translate(-50%, -50%) scale(0.97);
     filter: brightness(0.95);
+  }
+  .deal-btn.turbo-active {
+    animation: turbo-tap-pulse 1.1s ease-in-out infinite;
+    box-shadow:
+      0 8px 18px rgba(0,0,0,0.4),
+      inset 0 2px 0 rgba(255,255,255,0.6),
+      0 0 22px rgba(250, 204, 21, 0.45);
+  }
+  .deal-btn.turbo-active::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 18px;
+    border: 1px dashed rgba(250, 204, 21, 0.55);
+    animation: turbo-ring-spin 1.3s linear infinite;
+    pointer-events: none;
+  }
+  .deal-btn.turbo-active::after {
+    content: '';
+    position: absolute;
+    inset: -14px;
+    border-radius: 22px;
+    background:
+      radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0) 35%),
+      radial-gradient(circle at 88% 26%, rgba(251, 191, 36, 0.75), rgba(251, 191, 36, 0) 35%),
+      radial-gradient(circle at 24% 84%, rgba(252, 211, 77, 0.7), rgba(252, 211, 77, 0) 35%);
+    opacity: 0.55;
+    animation: turbo-sparkle 1.2s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+  @keyframes turbo-tap-pulse {
+    0%, 100% {
+      filter: brightness(1);
+    }
+    50% {
+      filter: brightness(1.08);
+    }
+  }
+  @keyframes turbo-ring-spin {
+    0% {
+      transform: rotate(0deg);
+      opacity: 0.65;
+    }
+    100% {
+      transform: rotate(360deg);
+      opacity: 0.35;
+    }
+  }
+  @keyframes turbo-sparkle {
+    0%, 100% {
+      opacity: 0.35;
+      transform: scale(0.98);
+    }
+    50% {
+      opacity: 0.65;
+      transform: scale(1.04);
+    }
+  }
+  .turbo-toggle-btn {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    border-radius: 9999px;
+    border: 1px solid #facc15;
+    background: rgba(17, 24, 39, 0.85);
+    color: #f8fafc;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 10px;
+    line-height: 1;
+  }
+  .ace-token-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 9999px;
+    border: 1px solid #f59e0b;
+    background: linear-gradient(180deg, #fff7e0, #ffe39a);
+    color: #2b1a02;
+    font-size: 11px;
+    padding: 4px 10px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  .daily-toggle-btn {
+    border-radius: 9999px;
+    border: 1px solid #ca8a04;
+    background: linear-gradient(180deg, #fff7d6, #ffe089);
+    color: #3b2502;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 6px 10px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8), 0 2px 8px rgba(0, 0, 0, 0.18);
+  }
+  .daily-toggle-btn.active {
+    border-color: #a16207;
+    background: linear-gradient(180deg, #fde68a, #fcd34d);
+  }
+  .header-daily-panel {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    background: linear-gradient(180deg, rgba(34, 40, 52, 0.96), rgba(15, 23, 42, 0.98));
+    animation: header-daily-drop 200ms ease-out;
+  }
+  @keyframes header-daily-drop {
+    0% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .personality-toast {
+    margin-bottom: 8px;
+    border: 1px solid #f59e0b;
+    border-radius: 10px;
+    background: rgba(17, 24, 39, 0.92);
+    color: #fef08a;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    animation: personality-toast-pop 180ms ease-out;
+  }
+  @keyframes personality-toast-pop {
+    0% { opacity: 0; transform: translateY(-6px) scale(0.98); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .theme-main {
+    transition: background 1s ease, background-image 1s ease, filter 1s ease;
+    filter: var(--theme-scene-filter, brightness(1));
+  }
+  .theme-main::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: var(--theme-overlay-color, rgba(0, 0, 0, 0));
+    opacity: 0.2;
+    mix-blend-mode: soft-light;
+    transition: background-color 1s ease, opacity 1s ease;
+    z-index: 0;
+  }
+  .theme-garage {
+    --theme-overlay-color: rgba(251, 191, 36, 0.05);
+    --theme-scene-filter: brightness(1.01) saturate(1.02);
+    background:
+      radial-gradient(140% 80% at 50% 0%, rgba(251, 191, 36, 0.10), rgba(0, 0, 0, 0)),
+      linear-gradient(180deg, #0f172a 0%, #111827 55%, #1f2937 100%);
+  }
+  .theme-casino {
+    --theme-overlay-color: rgba(22, 163, 74, 0.08);
+    --theme-scene-filter: brightness(1.02) saturate(1.05);
+    background:
+      radial-gradient(130% 70% at 50% -10%, rgba(250, 204, 21, 0.18), rgba(0, 0, 0, 0)),
+      linear-gradient(180deg, #14532d 0%, #14532d 45%, #1f2937 100%);
+  }
+  .theme-highroller {
+    --theme-overlay-color: rgba(245, 158, 11, 0.10);
+    --theme-scene-filter: brightness(1.05) hue-rotate(10deg);
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(245, 158, 11, 0.22), rgba(0, 0, 0, 0)),
+      linear-gradient(180deg, #1f2937 0%, #1e293b 55%, #0f172a 100%);
+  }
+  .theme-vip {
+    --theme-overlay-color: rgba(56, 189, 248, 0.09);
+    --theme-scene-filter: brightness(1.03) saturate(1.08);
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(56, 189, 248, 0.20), rgba(0, 0, 0, 0)),
+      linear-gradient(180deg, #0f172a 0%, #0b1f3a 55%, #111827 100%);
+  }
+  .theme-backalley {
+    --theme-overlay-color: rgba(248, 113, 113, 0.09);
+    --theme-scene-filter: brightness(0.99) saturate(1.04);
+    background:
+      radial-gradient(130% 80% at 50% -10%, rgba(248, 113, 113, 0.18), rgba(0, 0, 0, 0)),
+      linear-gradient(180deg, #1f2937 0%, #3f1d2e 55%, #111827 100%);
   }
   .chip-counter {
     font-variant-numeric: tabular-nums;
@@ -767,3 +1139,4 @@
     user-select: text;
   }
 </style>
+

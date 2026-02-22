@@ -1,7 +1,12 @@
-import { writable } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
+import { DAILY_TAP_TARGET } from './v701Config';
+import { createDailyTasks, getLocalDateKey, type DailyTasksState } from './v701Logic';
+import { checkTDUnlocked } from './rouletteLogic';
 
 export const chips = writable(0);
 export const cps = writable(0);
+export const aceTokens = writable(0);
+export const aceTokenPassiveProgressSeconds = writable(0);
 
 export interface Building {
   name: string;
@@ -31,6 +36,8 @@ export const adState = writable<Record<AdType, AdItem>>({
 export const thUnlocked = writable(false);
 export const tapMultiplier = writable(1);
 export const watchingAd = writable<'none' | AdType>('none');
+export const autoTapperUnlocked = writable(false);
+export const autoTapperEnabled = writable(false);
 
 export const bonusVisible = writable(false);
 export const selectedHole = writable<string[]>([]);
@@ -69,6 +76,8 @@ export const v2BuildingLevels = writable<Record<V2BuildingId, number>>({
   BuildingExpansion: 0
 });
 
+export const rouletteUnlocked = derived(v2BuildingLevels, ($levels) => checkTDUnlocked($levels));
+
 export const prestigePoints = writable(0);
 export const uiMode = writable<'accordion' | 'tree'>('accordion');
 
@@ -76,6 +85,14 @@ export const uiMode = writable<'accordion' | 'tree'>('accordion');
 export type SlotsMode = 'low' | 'high';
 export const slotsUnlocked = writable(false);
 export const slotsMode = writable<SlotsMode>('high');
+export const currentThemeIndex = writable(0);
+
+const initialDailyDateKey = getLocalDateKey();
+export const dailyTasks = writable<DailyTasksState>(createDailyTasks(initialDailyDateKey, DAILY_TAP_TARGET));
+export const dailyStreakCount = writable(0);
+export const dailyLastCompletedDateKey = writable<string | null>(null);
+export const dailyCpsBoostMultiplier = writable(1);
+export const dailyCpsBoostEndsAt = writable(0);
 
 // V301 Reset Flow State
 export type EscapeMethod = 'relocation' | 'identity' | 'run';
@@ -152,3 +169,27 @@ export function initializeDebugMode(): void {
   const isQueryDebug = typeof window !== 'undefined' && window.location.search.includes('debug=1');
   debugEnabled.set(isEnvDebug || isQueryDebug);
 }
+
+export { personalityToasts } from './personalityToast';
+
+export type { ChaseAceState } from './chaseAceStore';
+export {
+  chaseAceState,
+  chaseAceRemainingMs,
+  chaseAceTimerText,
+  chaseAceBoostActive,
+  getChaseAceSnapshot,
+  openChaseAce,
+  closeChaseAce,
+  setUnlocked as setChaseAceUnlocked,
+  startRound as startChaseAceRound,
+  startShuffle as startChaseAceShuffle,
+  advanceShuffleStep as advanceChaseAceShuffleStep,
+  finishShuffle as finishChaseAceShuffle,
+  pickCard as pickChaseAceCard,
+  resolveRound as resolveChaseAceRound,
+  resetForNextRound as resetChaseAceForNextRound,
+  hydrateState as hydrateChaseAceState,
+  expireBoostIfNeeded as expireChaseAceBoostIfNeeded,
+  tickChaseAceTimer
+} from './chaseAceStore';

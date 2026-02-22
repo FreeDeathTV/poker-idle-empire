@@ -183,14 +183,14 @@ export function debugAdvanceResetStage(
   const currentSnapshot = currentDebugState.resetFlowSnapshot;
   if (!currentSnapshot) throw new Error('Reset test not started');
 
-  let nextStage = currentSnapshot.stage as any;
-  let method_val = method || currentSnapshot.method;
+  let nextStage: 1 | 2 | 3 = currentSnapshot.stage;
+  let method_val: EscapeMethod | null = method ?? currentSnapshot.method;
   let outcome: WheelOutcome | null = currentSnapshot.outcome;
 
   if (currentSnapshot.stage === 1) {
     // Advance to stage 2
     nextStage = 2;
-    method_val = method;
+    method_val = method ?? null;
   } else if (currentSnapshot.stage === 2) {
     // Spin wheel and advance to stage 3
     nextStage = 3;
@@ -214,7 +214,7 @@ export function debugAdvanceResetStage(
 
   const snapshot: ResetFlowTestSnapshot = {
     stage: nextStage,
-    method: method_val || null,
+    method: method_val,
     outcome,
     baseBonus,
     finalBonus,
@@ -225,7 +225,7 @@ export function debugAdvanceResetStage(
     ...state,
     resetFlowSnapshot: {
       stage: nextStage,
-      method: method_val || null,
+      method: method_val,
       outcome,
       canReSpin: currentSnapshot.canReSpin
     }
