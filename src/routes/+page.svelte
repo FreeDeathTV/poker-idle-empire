@@ -45,9 +45,10 @@
     setTurboTapperEnabled,
     syncThemeFromProgress
   } from '$lib/gameLogic';
-  import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus, type BuildingId } from '$lib/v2';
+import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus, type BuildingId } from '$lib/v2';
   import { CHASE_ACE_CARD_SHUFFLERS_UNLOCK_LEVEL } from '$lib/chaseAceConfig';
   import type { AdType } from '$lib/stores';
+  import { blackjackState, blackjackUnlocked } from '$lib/sponsorsBlackjack';
   import BonusModal from '../components/BonusModal.svelte';
   import AdWatcher from '../components/AdWatcher.svelte';
   import Building from '../components/Building.svelte';
@@ -59,8 +60,10 @@
   import Instructions from '../components/Instructions.svelte';
   import ResetFlow from '../components/ResetFlow.svelte';
   import DebugSuite from '../components/DebugSuite.svelte';
+import InstallPrompt from '../components/InstallPrompt.svelte';
+  import BlackjackSpotlight from '../components/BlackjackSpotlight.svelte';
 
-  let interval: ReturnType<typeof setInterval> | null = null;
+  let interval: ReturnType
   let offlineEarnings = 0;
   let showOfflineModal = false;
   let showInstructions = false;
@@ -431,13 +434,14 @@
   </header>
 
   <!-- Floating Help button (kept outside header per V204) -->
-  <div class="fixed top-2 left-2 z-50">
+  <div class="fixed top-2 left-2 z-50 flex flex-col gap-1">
     <button
       class="text-yellow-400/90 bg-gray-900/70 border border-yellow-600 rounded-full w-9 h-9 flex items-center justify-center active:scale-95 backdrop-blur-sm"
       on:click={() => { showInstructions = true; }}
       aria-label="Help"
       title="How to Play"
     >?</button>
+    <InstallPrompt />
   </div>
 
   <!-- Tap Multiplier indicator (below header) -->
@@ -659,6 +663,19 @@
       </section>
     {/if}
 
+    <!-- Blackjack Spotlight (V1001) - Unlocked with first Sponsors building -->
+    {#if ($v2BuildingLevels.Sponsors || 0) >= 1}
+      <section class="mb-6">
+        <button
+          on:click={() => { blackjackState.openGame(); }}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-purple-400"
+        >
+          ♠️ Blackjack Spotlight
+        </button>
+      </section>
+    {/if}
+
     <!-- Ad Rewards -->
     <section class="mb-6">
       <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
@@ -700,6 +717,7 @@
   <EmpireSlotsModal on:close={() => { showEmpireSlots = false; }} />
 {/if}
 <ChaseAceModal />
+<BlackjackSpotlight />
 {#if $rouletteUnlocked}
   <Roulette
     open={showRoulette}
