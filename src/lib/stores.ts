@@ -193,3 +193,31 @@ export {
   expireBoostIfNeeded as expireChaseAceBoostIfNeeded,
   tickChaseAceTimer
 } from './chaseAceStore';
+
+// V1200 Craps Rush - Expansion Discount
+export type { CrapsRushState, BetType, GamePhase } from './expansionDiscount';
+export {
+  crapsRushState,
+  crapsRushDiscountActive,
+  crapsRushRemainingMinutes,
+  crapsRushCooldownRemainingSeconds,
+  crapsRushCanPlay,
+  getCrapsRushSnapshot,
+  setCrapsRushUnlocked,
+  openCrapsRush,
+  closeCrapsRush,
+  startRound,
+  resolveRound,
+  resetForNextRound,
+  hydrateState as hydrateCrapsRushState,
+  expireIfNeeded as expireCrapsRushIfNeeded,
+  tickCrapsRushTimer,
+  isDiscountActive,
+  getRemainingDiscountMinutes,
+  getRemainingCooldownSeconds,
+  canPlayNow,
+  EXPANSION_DISCOUNT_PERCENT,
+  DAILY_CAP_MINUTES,
+  COOLDOWN_MS,
+  REWARD_DURATION_MS
+} from './expansionDiscount';

@@ -22,7 +22,14 @@
     currentThemeIndex,
     chaseAceState,
     personalityToasts,
-    rouletteUnlocked
+    rouletteUnlocked,
+    // V1200 Craps Rush
+    crapsRushState,
+    crapsRushDiscountActive,
+    crapsRushRemainingMinutes,
+    setCrapsRushUnlocked,
+    openCrapsRush,
+    tickCrapsRushTimer
   } from '$lib/stores';
   import {
     loadGame,
@@ -62,6 +69,7 @@ import { BUILDINGS, isUnlocked, levelCost, prestigeMultiplier, signingBonus, typ
   import DebugSuite from '../components/DebugSuite.svelte';
 import InstallPrompt from '../components/InstallPrompt.svelte';
   import BlackjackSpotlight from '../components/BlackjackSpotlight.svelte';
+  import CrapsRush from '../components/CrapsRush.svelte';
 
   let interval: ReturnType
   let offlineEarnings = 0;
@@ -197,8 +205,13 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
     saveGame();
   }
 
-  $: chaseAceUnlockedByBuilding = ($v2BuildingLevels.CardShufflers || 0) >= CHASE_ACE_CARD_SHUFFLERS_UNLOCK_LEVEL;
+$: chaseAceUnlockedByBuilding = ($v2BuildingLevels.CardShufflers || 0) >= CHASE_ACE_CARD_SHUFFLERS_UNLOCK_LEVEL;
   $: setChaseAceUnlocked(chaseAceUnlockedByBuilding);
+
+  // V1200: Unlock Craps Rush when Building Expansion is unlocked
+  $: crapsRushUnlockedByBuilding = ($v2BuildingLevels.BuildingExpansion || 0) >= 1;
+  $: setCrapsRushUnlocked(crapsRushUnlockedByBuilding);
+
   $: if ($v2BuildingLevels) {
     syncThemeFromProgress();
   }
@@ -285,7 +298,7 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
     }
   });
 
-  onDestroy(() => {
+onDestroy(() => {
     stopAutoSave();
     if (interval) clearInterval(interval);
     if (appToastHandler) {
@@ -294,6 +307,9 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
     }
     saveGame(); // Final save on exit
   });
+
+  // V1200: Apply expansion discount to building costs
+  $: expansionDiscountMultiplier = $crapsRushDiscountActive ? 0.5 : 1;
 
   // Handle ad button click
   function handleAdClick(type: AdType) {
@@ -536,11 +552,17 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
                       +{(b.baseBoost * 100).toFixed(0)}% boost/lvl
                     </div>
                   </div>
-                  <div class="mt-2 flex items-center justify-between gap-3">
+<div class="mt-2 flex items-center justify-between gap-3">
                     <div class="text-sm text-gray-300">
                       Owned: <span class="text-white font-bold">{lvl}</span>
                       {#if !unlocked}
                         <span class="ml-1 text-xs text-gray-500">(Locked)</span>
+                      {/if}
+                      <!-- V1200: Discount badge for Building Expansion -->
+                      {#if b.id === 'BuildingExpansion' && $crapsRushDiscountActive}
+                        <span class="ml-1 px-1.5 py-0.5 rounded bg-green-600 text-white text-xs font-bold animate-pulse">
+                          -{$crapsRushRemainingMinutes}m
+                        </span>
                       {/if}
                     </div>
                     <button disabled={!unlocked || !isFinite(cost) || $chips < cost}
@@ -548,12 +570,16 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
                         if (!unlocked) return;
                         if (!isFinite(cost)) return;
                         if ($chips < cost) return;
-                        chips.set($chips - cost);
+                        // V1200: Apply expansion discount if active
+                        const actualCost = b.id === 'BuildingExpansion' && $crapsRushDiscountActive
+                          ? Math.floor(cost * expansionDiscountMultiplier)
+                          : cost;
+                        chips.set($chips - actualCost);
                         v2BuildingLevels.set({ ...$v2BuildingLevels, [b.id]: lvl + 1 });
                         saveGame();
                       }}
-                      class="px-3 py-1.5 rounded bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500 text-xs whitespace-nowrap"
-                    >{isFinite(cost) ? `Buy: ${formatNumber(cost)}` : 'Config Pending'}</button>
+                      class="px-3 py-1.5 rounded bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500 text-xs whitespace-nowrap {b.id === 'BuildingExpansion' && $crapsRushDiscountActive ? 'text-green-400 border border-green-500' : ''}"
+                    >{isFinite(cost) ? `Buy: ${b.id === 'BuildingExpansion' && $crapsRushDiscountActive ? formatNumber(Math.floor(cost * expansionDiscountMultiplier)) + ' (-50%)' : formatNumber(cost)}` : 'Config Pending'}</button>
                   </div>
                   {#if lvl > 300}
                     <div class="mt-1 text-[10px] text-red-400">reduced x1/2</div>
@@ -676,6 +702,19 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
       </section>
     {/if}
 
+    <!-- V1200 Craps Rush - Unlocked with first Building Expansion -->
+    {#if crapsRushUnlockedByBuilding}
+      <section class="mb-6">
+        <button
+          on:click={() => { openCrapsRush(); }}
+          style="touch-action: manipulation;"
+          class="w-full py-4 bg-gradient-to-b from-green-600 to-green-800 hover:from-green-500 hover:to-green-700 rounded-xl text-white text-lg font-bold shadow-lg active:scale-95 transition-transform border-4 border-green-400"
+        >
+          🎲 Craps Rush
+        </button>
+      </section>
+    {/if}
+
     <!-- Ad Rewards -->
     <section class="mb-6">
       <h2 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
@@ -717,6 +756,7 @@ import InstallPrompt from '../components/InstallPrompt.svelte';
   <EmpireSlotsModal on:close={() => { showEmpireSlots = false; }} />
 {/if}
 <ChaseAceModal />
+<CrapsRush />
 <BlackjackSpotlight />
 {#if $rouletteUnlocked}
   <Roulette
