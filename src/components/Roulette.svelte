@@ -20,9 +20,10 @@
   export let open = false;
   const dispatch = createEventDispatcher<{ close: void; spinComplete: void }>();
 
-  const spinDuration = 5000;
-  const spinEasing = 'cubic-bezier(0.25, 0.1, 0.25, 1)';
-  const ballEasing = 'cubic-bezier(0.1, 0.2, 0.1, 1)';
+  const spinDuration = 2500;
+  const spinEasing = 'cubic-bezier(0.1, 0.8, 0.2, 1)';
+  const ballEasing = 'cubic-bezier(0.1, 0.8, 0.2, 1)';
+  const PRE_SPIN_DELAY_MS = 100;
   const SNAP_DURATION_MS = 300;
   const RESULT_FLASH_MS = 1000;
   const BOARD_PULSE_MS = 1500;
@@ -147,9 +148,11 @@
     setTimeout(() => (shakeChips = false), 280);
   }
 
-  function chipsFor(type: RouletteBetType, numbers: number[]): number[] {
-    return betChipsByKey.get(getBetKey(type, normalizeNumbers(numbers))) ?? [];
-  }
+  // Use a reactive function that always reads the current betChipsByKey value
+  $: getChipsFor = (type: RouletteBetType, numbers: number[]): number[] => {
+    const key = getBetKey(type, normalizeNumbers(numbers));
+    return betChipsByKey.get(key) ?? [];
+  };
 
   function removeLastChip(type: RouletteBetType, numbers: number[]): void {
     if (placementLocked || isSpinning) return emitToast('Invalid bet.');
@@ -181,7 +184,7 @@
     clearLongPressTimer(key);
     const timer = setTimeout(() => {
       longPressTimers.delete(key);
-      if (chipsFor(type, normalized).length === 0) return;
+      if (getChipsFor(type, normalized).length === 0) return;
       suppressTapForKeys.add(key);
       removeLastChip(type, normalized);
     }, LONG_PRESS_MS);
@@ -241,9 +244,10 @@
     showWheelOverlay = true;
     emitToast('No more bets!');
 
+    await wait(PRE_SPIN_DELAY_MS);
     winningNumber = Math.floor(Math.random() * 37);
     winningColor = getRouletteColor(winningNumber);
-    const spinAmount = randomBetween(720, 1440);
+    const spinAmount = randomBetween(1800, 2520);
     setSpinTransitions(spinDuration, spinEasing, ballEasing);
     wheelAngle += spinAmount;
     ballAngle -= spinAmount * 1.3;
@@ -407,7 +411,7 @@
         >
           0
           <div class="bet-chip-anchor zero-anchor">
-            {#each chipsFor('straight', zeroStraightNumbers) as chipValue, chipIndex (chipIndex)}
+            {#each getChipsFor('straight', zeroStraightNumbers) as chipValue, chipIndex (chipIndex)}
               <RouletteChip value={chipValue} depth={chipIndex} />
             {/each}
           </div>
@@ -420,7 +424,7 @@
           {placementLocked}
           {pulseWinningNumber}
           {lastWinningNumber}
-          {chipsFor}
+          {getChipsFor}
           {resultClass}
           {handleBetTap}
           {handleBetRemove}
@@ -436,7 +440,7 @@
             {placementLocked}
             {pulseWinningNumber}
             {lastWinningNumber}
-            {chipsFor}
+            {getChipsFor}
             {resultClass}
             {handleBetTap}
             {handleBetRemove}
@@ -449,7 +453,7 @@
         <div class="outside-section-title">EVEN CHANCE</div>
         <div class="outside-grid even-chance-grid">
           {#each evenChanceEntries as evenChance}
-            {@const outsideChips = chipsFor(evenChance.type, evenChance.numbers)}
+            {@const outsideChips = getChipsFor(evenChance.type, evenChance.numbers)}
             <button
               class="outside-btn even-chance-btn {resultClass(evenChance.type, evenChance.numbers)}"
               disabled={placementLocked}
@@ -474,7 +478,7 @@
         <div class="outside-section-title">DOZENS</div>
         <div class="outside-grid dozens-grid">
           {#each dozenEntries as dozen}
-            {@const outsideChips = chipsFor(dozen.type, dozen.numbers)}
+            {@const outsideChips = getChipsFor(dozen.type, dozen.numbers)}
             <button
               class="outside-btn {resultClass(dozen.type, dozen.numbers)}"
               disabled={placementLocked}
@@ -499,7 +503,7 @@
         <div class="outside-grid columns-grid">
           <div class="column-spacer"></div>
           {#each columnEntries as column}
-            {@const outsideChips = chipsFor(column.type, column.numbers)}
+            {@const outsideChips = getChipsFor(column.type, column.numbers)}
             <button
               class="outside-btn column-btn {resultClass(column.type, column.numbers)}"
               disabled={placementLocked}
@@ -565,7 +569,7 @@
 <style>
   .roulette-shell { position: fixed; inset: 0; z-index: 70; }
   .roulette-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.82); border: none; padding: 0; }
-  .roulette-modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(96vw, 680px); max-height: 94vh; display: flex; flex-direction: column; border: 1px solid #9a7b2f; border-radius: 14px; background: #0f172a; overflow: hidden; }
+  .roulette-modal { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(96vw, 680px); max-height: 94vh; display: flex; flex-direction: column; border: 1px solid #9a7b2f; border-radius: 14px; background: #0f172a; overflow-y: auto; overflow-x: hidden; }
   .roulette-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #334155; color: #fff; }
   .close-btn, .chip-option, .outside-btn, .primary-btn, .secondary-btn { min-height: 40px; border-radius: 10px; font-size: 12px; font-weight: 800; }
   .close-btn, .chip-option, .outside-btn, .secondary-btn { border: 1px solid #6b7280; background: #111827; color: #f8fafc; }
@@ -574,12 +578,11 @@
   .chip-selector.shake { animation: shake 220ms ease-in-out; box-shadow: 0 0 0 1px #dc2626 inset; border-radius: 10px; padding: 4px; }
   .chip-option.active { border-color: #facc15; background: #3f2d07; color: #fde68a; }
   .bet-stats { color: #d1d5db; font-size: 11px; display: flex; justify-content: space-between; }
-  .roulette-board {
+.roulette-board {
     --roulette-cell-size: 62px;
     --roulette-cell-gap: 6px;
     flex: 1;
-    overflow-y: auto;
-    overflow-x: visible;
+    overflow: visible;
     padding: 10px;
     transition: opacity 200ms ease;
   }
@@ -619,6 +622,11 @@
     z-index: 60;
     overflow: visible;
   }
+
+  .zero-anchor {
+    transform: none;
+  }
+
   .outside-anchor {
     transform: translateY(-2px);
   }

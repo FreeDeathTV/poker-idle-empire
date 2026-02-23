@@ -431,7 +431,7 @@
   </header>
 
   <!-- Floating Help button (kept outside header per V204) -->
-  <div class="fixed top-2 right-2 z-50">
+  <div class="fixed top-2 left-2 z-50">
     <button
       class="text-yellow-400/90 bg-gray-900/70 border border-yellow-600 rounded-full w-9 h-9 flex items-center justify-center active:scale-95 backdrop-blur-sm"
       on:click={() => { showInstructions = true; }}

@@ -16,7 +16,8 @@
   export let placementLocked = false;
   export let pulseWinningNumber = false;
   export let lastWinningNumber: number | null = null;
-  export let chipsFor: (type: RouletteBetType, numbers: number[]) => number[];
+  export let getChipsFor: (type: RouletteBetType, numbers: number[]) => number[];
+  
   export let resultClass: (type: RouletteBetType, numbers: number[]) => string;
   export let handleBetTap: (type: RouletteBetType, numbers: number[]) => void;
   export let handleBetRemove: (type: RouletteBetType, numbers: number[]) => void;
@@ -52,10 +53,10 @@
             ? getSplitVerticalNumbers(rowIndex, colIndex)
             : null}
           {@const corner = hasNextVisibleRow(rowIndex) ? getCornerNumbers(rowIndex, colIndex) : null}
-          {@const straightChips = straight ? chipsFor('straight', straight) : []}
-          {@const splitHorizontalChips = splitHorizontal ? chipsFor('split', splitHorizontal) : []}
-          {@const splitVerticalChips = splitVertical ? chipsFor('split', splitVertical) : []}
-          {@const cornerChips = corner ? chipsFor('corner', corner) : []}
+          {@const straightChips = straight ? getChipsFor('straight', straight) : []}
+          {@const splitHorizontalChips = splitHorizontal ? getChipsFor('split', splitHorizontal) : []}
+          {@const splitVerticalChips = splitVertical ? getChipsFor('split', splitVertical) : []}
+          {@const cornerChips = corner ? getChipsFor('corner', corner) : []}
 
           <div class="number-cell {getRouletteColor(number)} {pulseWinningNumber && lastWinningNumber === number ? 'winning-pocket-pulse' : ''}">
             {#if straight}
@@ -142,7 +143,7 @@
     <div class="street-grid">
       {#each rowIndexes as rowIndex}
         {@const row = getRow(rowIndex)}
-        {@const streetChips = chipsFor('street', row)}
+        {@const streetChips = getChipsFor('street', row)}
         <button
           class="street-zone {resultClass('street', row)}"
           disabled={placementLocked}
@@ -168,7 +169,7 @@
     {#each rowIndexes as rowIndex}
       {@const line = hasNextVisibleRow(rowIndex) ? getLineNumbers(rowIndex) : null}
       {#if line}
-        {@const lineChips = chipsFor('line', line)}
+        {@const lineChips = getChipsFor('line', line)}
         <button
           class="line-zone {resultClass('line', line)}"
           disabled={placementLocked}
@@ -310,6 +311,10 @@
     pointer-events: none;
     z-index: 60;
     overflow: visible;
+  }
+
+  .center-anchor {
+    transform: none;
   }
 
   .split-horizontal-anchor {
