@@ -3,13 +3,117 @@
   import { watchingAd, adState } from '$lib/stores';
   import { grantAdReward, getAdCooldown, formatCooldown } from '$lib/gameLogic';
   import type { AdType } from '$lib/stores';
+  import { ADMOB_CONFIG } from '$lib/admobConfig';
 
   let countdown = 5;
   let interval: ReturnType<typeof setInterval> | null = null;
+  let admobReady = false;
+  let currentAdType: AdType = 'none';
+
+  // Initialize AdMob
+  function initAdMob() {
+    if (typeof window === 'undefined') return;
+    
+    // Load AdMob script
+    const script = document.createElement('script');
+    script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADMOB_CONFIG.appId.replace('~', '/');
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    document.head.appendChild(script);
+
+    script.onload = () => {
+      admobReady = true;
+      console.log('AdMob script loaded successfully');
+    };
+
+    script.onerror = () => {
+      console.warn('AdMob script failed to load, using fallback countdown');
+      startCountdown();
+    };
+  }
 
   // Watch for ad state changes
   $: if ($watchingAd !== 'none') {
-    startCountdown();
+    currentAdType = $watchingAd;
+    startAdMobAd();
+  }
+
+  function startAdMobAd() {
+    if (!admobReady) {
+      initAdMob();
+      // Fallback to countdown if AdMob not ready
+      setTimeout(() => {
+        if (!admobReady) {
+          startCountdown();
+        }
+      }, 2000);
+      return;
+    }
+
+    // Try to show real AdMob ad
+    try {
+      const adUnitId = ADMOB_CONFIG.adUnits[currentAdType];
+      showAdMobInterstitial(adUnitId);
+    } catch (e) {
+      console.warn('AdMob ad failed, falling back to countdown:', e);
+      startCountdown();
+    }
+  }
+
+  function showAdMobInterstitial(adUnitId: string) {
+    if (!window.adsbygoogle) {
+      startCountdown();
+      return;
+    }
+
+    // Create interstitial ad element
+    const adContainer = document.createElement('div');
+    adContainer.innerHTML = `
+      <ins class="adsbygoogle"
+           style="display:block; width: 100%; height: 100%;"
+           data-ad-client="${ADMOB_CONFIG.appId}"
+           data-ad-slot="${adUnitId}"
+           data-ad-format="auto"
+           data-full-width-responsive="true">
+      </ins>
+    `;
+    
+    // Show ad container
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4';
+    overlay.appendChild(adContainer);
+    document.body.appendChild(overlay);
+
+    // Load the ad
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+      
+      // Set up ad event listeners
+      const checkAdLoaded = setInterval(() => {
+        const ad = adContainer.querySelector('ins.adsbygoogle');
+        if (ad && ad.innerHTML.trim() !== '') {
+          clearInterval(checkAdLoaded);
+          // Ad loaded successfully
+          setTimeout(() => {
+            finishAd();
+            overlay.remove();
+          }, 5000); // Show ad for 5 seconds minimum
+        }
+      }, 1000);
+
+      // Fallback timer
+      setTimeout(() => {
+        if (overlay.parentNode) {
+          overlay.remove();
+        }
+        finishAd();
+      }, 15000); // Maximum 15 seconds
+
+    } catch (e) {
+      console.warn('AdMob interstitial failed:', e);
+      overlay.remove();
+      startCountdown();
+    }
   }
 
   function startCountdown() {
@@ -28,13 +132,16 @@
       clearInterval(interval);
       interval = null;
     }
-    const adType = $watchingAd;
-    if (adType !== 'none') {
-      grantAdReward(adType);
+    if (currentAdType !== 'none') {
+      grantAdReward(currentAdType);
     }
   }
 
   function skipAd() {
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    }
     finishAd();
   }
 

@@ -80,7 +80,7 @@
   }
 
   function closeModal() {
-    if ($crapsRushState.phase === 'ROLL' || $crapsRushState.phase === 'shaking') return;
+    if ($crapsRushState.phase === 'COOLDOWN' || diceAnimationPhase !== 'idle') return;
     if (animationTimer) clearTimeout(animationTimer);
     closeCrapsRush();
   }

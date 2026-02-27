@@ -221,3 +221,10 @@ export {
   COOLDOWN_MS,
   REWARD_DURATION_MS
 } from './expansionDiscount';
+
+// Demo mode removed - V1400 unified architecture
+// All game logic now lives in /app with full functionality
+// No demo restrictions or separate demo mode needed
+
+// Re-export blackjackUnlocked from sponsorsBlackjack
+export { blackjackUnlocked } from './sponsorsBlackjack';

@@ -1,11 +1,17 @@
 <script>
+  import { onMount } from 'svelte';
+  
   let deferredPrompt = null;
   let showInstall = false;
 
-  window.addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    showInstall = true;
+  onMount(() => {
+    if (typeof window === 'undefined') return;
+    
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstall = true;
+    });
   });
 
   async function install() {
