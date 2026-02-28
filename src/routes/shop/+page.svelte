@@ -4,18 +4,28 @@
   import { goto } from '$app/navigation';
   import { pwaInstalled } from '$lib/pwaStore';
   import { aceTokens, formatNumber } from '$lib/stores';
+  import HeadsUpHoldemLadder from '../../components/HeadsUpHoldemLadder.svelte';
 
   const shopItems = [
+    { id: 'heads-up-holdem', title: 'Heads-Up Hold\'em Ladder', icon: '🃏', comingSoon: false },
     { id: 'cosmetics', title: 'Cosmetics', icon: '✨', comingSoon: true },
     { id: 'daily-deals', title: 'Daily Deals', icon: '🏷️', comingSoon: true },
     { id: 'boosts', title: 'Boosts', icon: '⚡', comingSoon: true },
-    { id: 'special', title: 'Special Offers', icon: '🎁', comingSoon: true },
   ];
 
   function goBack() {
     goto('/app');
   }
+
+  function handleShopItemClick(item) {
+    if (item.id === 'heads-up-holdem') {
+      // Dispatch a custom event to open the ladder modal
+      window.dispatchEvent(new CustomEvent('open-ladder-modal'));
+    }
+  }
 </script>
+
+<HeadsUpHoldemLadder />
 
 <div class="shop-page">
   <div class="shop-header">
@@ -31,7 +41,7 @@
 
   <div class="shop-grid">
     {#each shopItems as item}
-      <div class="shop-item">
+      <div class="shop-item" on:click={() => handleShopItemClick(item)} class:clickable={!item.comingSoon}>
         <div class="shop-icon">{item.icon}</div>
         <div class="shop-title">{item.title}</div>
         {#if item.comingSoon}
@@ -110,6 +120,22 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     position: relative;
     overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+
+  .shop-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  }
+
+  .shop-item.clickable:hover {
+    border-color: rgba(245, 197, 66, 0.5);
+    background: linear-gradient(145deg, #2a2a4e, #353560);
+  }
+
+  .shop-item:active {
+    transform: translateY(0);
   }
 
 

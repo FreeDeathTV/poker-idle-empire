@@ -30,8 +30,10 @@
     crapsRushRemainingMinutes,
     setCrapsRushUnlocked,
     openCrapsRush,
-    tickCrapsRushTimer
+    tickCrapsRushTimer,
+    resetFlowActive
   } from '$lib/stores';
+  import ChipOdometer from '../../components/ChipOdometer.svelte';
   import {
     loadGame,
     updateIdle,
@@ -434,7 +436,7 @@
               {/if}
             </span>
             <div class="flex flex-col items-start leading-tight">
-              <span class="chip-counter">{formatNumber($chips)}</span>
+              <ChipOdometer chips={$chips} cps={$cps} isResetFlow={$resetFlowActive} />
               {#if $cps > 0}
                 <span class="text-[10px] text-green-700 font-semibold">+{$cps}/s</span>
               {/if}

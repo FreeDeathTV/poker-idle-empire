@@ -1,167 +1,153 @@
-# TODO.md — Deterministic Horizontal Chip Odometer (ADR‑04 Implementation)
+# **TODO.md — Heads‑Up Hold’em Ladder Mode (ADR‑1500 Series)**
 
-This TODO file defines the exact tasks, constraints, and acceptance criteria required to implement the deterministic horizontal odometer described in ADR‑04.
+This TODO file defines the **exact implementation sequence**, tied directly to the ADR‑1500 series.  
+Each task must be completed **in order**, with **zero drift**, and checked off only when the corresponding ADR has been fully implemented and verified.
 
-**This feature is UI-only.**
-It must not modify game logic, CPS, chip generation, buildings, upgrades, multipliers, or any economy system.
+---
 
-## Phase 1 — Foundation & Architecture
+## **0. Foundation Rules (Must Follow Throughout)**
 
-### 1.1 Create Odometer Component Structure
-- [ ] Create `src/lib/components/odometer/Odometer.svelte`
-- [ ] Create `src/lib/components/odometer/DigitSlot.svelte`
-- [ ] Create `src/lib/components/odometer/DigitRail.svelte`
-- [ ] Add props:
-  - `value: number`
-  - `suffix: string | null`
-  - `tier: number`
-- [ ] Add internal state for digit arrays
+- All work must follow the **ADR‑1500 → ADR‑1504 specifications exactly**.  
+- No deviation, improvisation, or undocumented changes.  
+- Any change to behaviour, UI, or logic requires a **new ADR** before implementation.  
+- All components must be **deterministic**, **client‑side**, and **modal‑contained**.  
+- Reuse existing systems wherever possible.  
+- No networking, no multiplayer, no server dependencies.
 
-**Acceptance Criteria**
-- Component renders without errors
-- No game logic touched
-- No new stores created
+---
 
-### 1.2 Integrate into Existing Pillbox
-- [ ] Locate `.chip-capsule` in `src/routes/app/+page.svelte`
-- [ ] Replace static `formatNumber($chips)` with `<Odometer value={$chips} />`
-- [ ] Preserve existing layout, icon, and CPS label
+## **1. ADR‑1500 — Feature Definition & Architecture**
+**Goal:** Establish the full scope and boundaries of the Heads‑Up Hold’em Ladder Mode.
 
-**Acceptance Criteria**
-- Pillbox layout unchanged except for number rendering
-- No visual regressions outside the pillbox
+- [x] Create feature folder structure inside Ace‑Token Shop  
+- [x] Add modal entry point for “Heads‑Up Hold’em Ladder”  
+- [x] Add placeholder portraits for all CPU opponents  
+- [x] Add ladder ordering (TheNorm → AnyAceNick → RedTheRiot → CrazyHorse → MrMark)  
+- [x] Add persistent save keys for ladder progress  
+- [x] Add deterministic RNG seed for AI behaviour  
 
-## Phase 2 — Core Odometer Logic
+**Completion requirement:**  
+Feature shell exists, modal opens, ladder list displays (locked/unlocked states not functional yet).
 
-### 2.1 Deterministic Value → Digit Conversion
-- [ ] Implement function to convert integer chip value into digit array
-- [ ] Implement suffix extraction (K/M/B/T)
-- [ ] Ensure no rounding errors
-Suffix strategy is display-only  
-Suffix (K/M/B/T) is purely visual; it must not affect underlying chip value or CPS.
+---
 
-**Acceptance Criteria**
-- Digit array always matches real chip value
-- No smoothing, interpolation, or fake increments
+## **2. ADR‑1501 — Betting Engine & Blind Ladder**
+**Goal:** Implement the deterministic heads‑up betting engine.
 
-### 2.2 Horizontal Slide Animation
-- [ ] Implement eased slide-left animation in `DigitSlot.svelte`
-- [ ] Use cubic ease-in-out
-- [ ] Trigger animation only when digit changes
+- [x] Implement hand state machine (preflop → flop → turn → river → showdown)  
+- [x] Implement turn order logic (SB/BB rotation)  
+- [x] Implement fold/call/check/raise/all‑in actions  
+- [x] Implement pot management  
+- [x] Implement stack tracking  
+- [x] Implement blind posting  
+- [x] Implement blind shrink ladder (10BB → 7.4BB → 5BB → 2.5BB → 1BB)  
+- [x] Implement hand reset between rounds  
+- [x] Implement game‑end detection  
 
-**Acceptance Criteria**
-- Animation is smooth, deterministic, and tied to real value changes
-- No animation occurs without a real digit change
+**Completion requirement:**  
+A full heads‑up hand can be played start‑to‑finish with no AI, using debug buttons.
 
-### 2.3 Tiered Animation Rules
-- [ ] Implement Tier 1 (all digits animate)
-- [ ] Implement Tier 2 (last 3–4 digits animate)
-- [ ] Implement Tier 3 (last 1–2 digits animate)
-- [ ] Add tier selection logic based on chip magnitude
+---
 
-**Acceptance Criteria**
-- Tier transitions are seamless
-- High CPS does not cause unreadable blur
-- Low CPS feels slow and chunky
+## **3. ADR‑1502 — CPU AI Profiles & Behaviour System**
+**Goal:** Implement the five CPU personalities with deterministic behaviour.
 
-## Phase 3 — Advanced Features
+- [x] Implement AI attribute model (aggression, bluff, call, raise, threshold)  
+- [x] Implement hand strength evaluation → 0–100 scale  
+- [x] Implement decision engine (fold/call/raise/all‑in)  
+- [x] Implement shallow‑stack logic (shove‑heavy at low BB)  
+- [x] Implement seeded randomness  
+- [x] Implement exploit flags for MrMark  
+- [x] Implement CPU profiles:  
+  - [x] TheNorm (Tier 1)  
+  - [x] AnyAceNick (Tier 2)  
+  - [x] RedTheRiot (Tier 3)  
+  - [x] CrazyHorse (Tier 4)  
+  - [x] MrMark (Tier 5)  
 
-### 3.1 Escape & Relocate Compression
-- [ ] Freeze left digits during relocation
-- [ ] Animate only last 1–2 digits
-- [ ] Update frozen block every 0.1s
-- [ ] Ensure no fake chip gain is shown
-Where Escape & Relocate comes from  
-### 3.11 Escape & Relocate Compression:
-- Source of truth for “relocation active” must be an existing UI/game 
-- flag; the odometer must not introduce its own relocation state or 
-- change relocation behaviour.
+**Completion requirement:**  
+CPU can play a full hand deterministically with distinct personalities.
 
-**Acceptance Criteria**
-- Compression visually stable
-- No drift between displayed and real chip value
+---
 
-### 3.2 Easing Curve Library
-- [ ] Create reusable easing functions
-- [ ] Ensure consistent timing across tiers
+## **4. ADR‑1503 — Progression Modal & Leaderboard**
+**Goal:** Implement the ladder progression UI and local leaderboard.
 
-**Acceptance Criteria**
-- All digit animations use the same easing curve family
-- No jitter or snapping
+### **Progression Modal**
+- [x] Create modal layout (ladder list)  
+- [x] Add portraits, bios, difficulty stars  
+- [x] Add locked/unlocked states  
+- [x] Add win progress bars (0/5 per CPU)  
+- [x] Add “Next Opponent” highlight  
+- [x] Add “Start Match” button (only if unlocked)  
 
-## Phase 4 — Integration & Polish
+### **Leaderboard**
+- [x] Create local leaderboard data structure  
+- [x] Add CPU “career stats” (deterministic fake values)  
+- [x] Add player stats (tokens won, streaks, highest tier beaten)  
+- [x] Add sorting (tokens → streak → tier)  
+- [x] Add leaderboard modal  
 
-### 4.1 Replace Existing Chip Display
-- [ ] Remove old bump/sparkle animations
-- [ ] Remove direct `formatNumber($chips)` usage
-- [ ] Ensure CPS label remains unchanged
+**Completion requirement:**  
+Player can view ladder progress and leaderboard independently of gameplay.
 
-**Acceptance Criteria**
-- Only the odometer controls chip display
-- No leftover animation artifacts
+---
 
-### 4.2 Performance Optimization
-- [ ] Batch digit updates
-- [ ] Avoid unnecessary re-renders
-- [ ] Ensure animation cost is O(number of animated digits)
+## **5. ADR‑1504 — Ace‑Token Economy Integration**
+**Goal:** Integrate entry costs, rewards, streak bonuses, and progression gating.
 
-**Acceptance Criteria**
-- Smooth performance on low-end devices
-- No frame drops at high CPS
+### **Entry Costs**
+- [x] Tier 1: 1 Ace‑Token  
+- [x] Tier 2: 2 Ace‑Tokens  
+- [x] Tier 3: 3 Ace‑Tokens  
+- [x] Tier 4: 4 Ace‑Tokens  
+- [x] Tier 5: 5 Ace‑Tokens  
 
-## Phase 5 — Testing & Validation
+### **Rewards**
+- [x] Tier 1: +2 Ace‑Tokens  
+- [x] Tier 2: +4 Ace‑Tokens  
+- [x] Tier 3: +6 Ace‑Tokens  
+- [x] Tier 4: +8 Ace‑Tokens  
+- [x] Tier 5: +12 Ace‑Tokens  
 
-### 5.1 Deterministic Behavior Tests
-- [ ] Test with CPS = 1, 10, 100, 1000, 1M
-- [ ] Verify animation speed matches real CPS
-- [ ] Verify no drift between chips and displayed digits
+### **Optional Chips**
+- [x] Add chip rewards (configurable)  
 
-**Acceptance Criteria**
-- Display always matches real chip value
-- No fake increments or smoothing
+### **Streak Bonuses**
+- [x] +1 token every 3 wins  
+- [x] +3 tokens every 5 wins  
 
-### 5.2 No Game Logic Changes
-- [ ] Confirm no modifications to:
-  - `chips` store
-  - `cps` store
-  - building logic
-  - upgrade logic
-  - multiplier logic
-- [ ] Confirm no new state variables added
+### **Progression Gating**
+- [x] Require 5 wins per CPU to unlock next tier  
+- [x] Save progress deterministically  
 
-**Acceptance Criteria**
-- Odometer is purely a display layer
-- Game logic untouched
+**Completion requirement:**  
+Player can spend tokens, win tokens, progress the ladder, and climb the leaderboard.
 
-### 5.3 Visual Validation
-- [ ] Test readability at all scales
-- [ ] Test Escape & Relocate behavior
-- [ ] Test suffix transitions (K/M/B/T)
+---
 
-**Acceptance Criteria**
-- Always readable
-- Always deterministic
-- Always stable
+## **6. Final Integration & QA**
+- [ ] Full modal flow test (Shop → Ladder → Match → Results → Ladder)  
+- [ ] Verify deterministic behaviour (same seed = same actions)  
+- [ ] Verify no drift from ADR‑1500 → 1504  
+- [ ] Verify save/load stability  
+- [ ] Verify UI responsiveness  
+- [ ] Verify token economy balance  
+- [ ] Verify CPU difficulty curve  
+- [ ] Verify no infinite loops in betting engine  
+- [ ] Verify blind ladder transitions  
 
-## Scope Guardrails (Foolproofing)
+**Completion requirement:**  
+Feature is stable, deterministic, and matches all ADR specifications exactly.
 
-**This feature must not introduce:**
-- new buildings
-- new upgrades
-- new multipliers
-- new bonuses
-- new economy systems
-- new stores
-- new game logic
+---
 
-**This feature must not modify:**
-- chip generation
-- CPS calculation
-- building logic
-- upgrade logic
-- multiplier logic
-
-**This feature must only modify:**
-- UI components
-- animation logic
-- digit rendering
+## **7. Release Checklist**
+- [ ] All ADR tasks checked off  
+- [ ] All modals visually polished  
+- [ ] All portraits replaced or confirmed  
+- [ ] All economy values validated  
+- [ ] All progression logic validated  
+- [ ] All leaderboard entries validated  
+- [ ] Final deterministic seed test  
+- [ ] Merge into main branch
