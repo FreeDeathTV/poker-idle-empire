@@ -6,6 +6,7 @@ import {
   aceTokenPassiveProgressSeconds,
   buildings,
   adState,
+  adLimits,
   thUnlocked,
   tapMultiplier,
   watchingAd,
@@ -68,8 +69,10 @@ import {
 } from './v701Logic';
 import { enqueuePersonalityToast } from './personalityToast';
 
-const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
-const DOUBLE_TAP_DURATION_MS = 5 * 60 * 1000;
+const ONE_HOUR_MS = 1 * 60 * 60 * 1000;
+const DOUBLE_TAP_DURATION_MS = 1 * 60 * 60 * 1000; // 1 hour instead of 5 minutes
+const MAX_DAILY_ADS = 4;
+const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000; // Keep for other ad types
 const LONG_OFFLINE_SECONDS_FOR_TOAST = 60 * 60;
 const TURBO_TAPPER_FIRST_TAP_TOAST_KEY = 'poker_idle_turbo_first_tap_toast_seen';
 const SAVE_KEY = 'poker_idle_save';
@@ -436,13 +439,19 @@ export function grantAdReward(type: AdType) {
   const ads = get(adState);
   if (!ads[type]) return;
   
+  // Set cooldown based on ad type
+  let cooldownMs = EIGHT_HOURS_MS;
+  if (type === 'doubleTap') {
+    cooldownMs = ONE_HOUR_MS; // 1 hour cooldown for double tap
+  }
+  
   ads[type].available = false;
-  ads[type].nextAvailable = Date.now() + EIGHT_HOURS_MS;
+  ads[type].nextAvailable = Date.now() + cooldownMs;
   adState.set(ads);
   
   if (type === 'doubleTap') {
     tapMultiplier.set(2);
-    // Reset after 5 minutes
+    // Reset after 1 hour
     setTimeout(() => {
       tapMultiplier.set(1);
     }, DOUBLE_TAP_DURATION_MS);
@@ -462,6 +471,56 @@ export function grantAdReward(type: AdType) {
   
   watchingAd.set('none');
   saveGame();
+}
+
+// Check and reset daily ad limits
+function checkDailyAdLimits(): void {
+  const now = Date.now();
+  const limits = get(adLimits);
+  const todayKey = getLocalDateKey(now);
+  
+  // Check if we need to reset the daily counter
+  const lastResetKey = getLocalDateKey(limits.doubleTap.lastResetTime);
+  if (todayKey !== lastResetKey) {
+    limits.doubleTap.dailyCount = 0;
+    limits.doubleTap.lastResetTime = now;
+    adLimits.set(limits);
+  }
+}
+
+// Check if user can watch more ads today
+export function canWatchAdToday(type: AdType): boolean {
+  checkDailyAdLimits();
+  const limits = get(adLimits);
+  
+  if (type === 'doubleTap') {
+    return limits.doubleTap.dailyCount < MAX_DAILY_ADS;
+  }
+  
+  // For other ad types, no daily limit
+  return true;
+}
+
+// Increment ad count for today
+export function incrementAdCount(type: AdType): void {
+  if (type === 'doubleTap') {
+    const limits = get(adLimits);
+    limits.doubleTap.dailyCount += 1;
+    adLimits.set(limits);
+  }
+}
+
+// Get remaining ads for today
+export function getRemainingAdsToday(type: AdType): number {
+  checkDailyAdLimits();
+  const limits = get(adLimits);
+  
+  if (type === 'doubleTap') {
+    return Math.max(0, MAX_DAILY_ADS - limits.doubleTap.dailyCount);
+  }
+  
+  // For other ad types, return a large number (no limit)
+  return 999;
 }
 
 // Get time remaining for an ad (in ms), or 0 if available

@@ -27,10 +27,24 @@ export interface AdItem {
   permanent?: boolean;
 }
 
+export interface AdLimits {
+  doubleTap: {
+    dailyCount: number;
+    lastResetTime: number;
+  };
+}
+
 export const adState = writable<Record<AdType, AdItem>>({
   doubleTap: { available: true, nextAvailable: 0 },
   extraTable: { available: true, nextAvailable: 0 },
   unlockTH: { available: true, nextAvailable: 0 }
+});
+
+export const adLimits = writable<AdLimits>({
+  doubleTap: {
+    dailyCount: 0,
+    lastResetTime: Date.now()
+  }
 });
 
 export const thUnlocked = writable(false);

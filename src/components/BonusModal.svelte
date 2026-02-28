@@ -2,12 +2,10 @@
   import { get } from 'svelte/store';
   import { bonusVisible, selectedHole, bonusBet, bonusResult, chips, adState, thUnlocked, formatNumber } from '$lib/stores';
   import { closeBonus, toggleCardSelection, randomizeHoleCards, playBonus, setBetAmount } from '$lib/gameLogic';
-  import { getCardDisplay, getHandNotation, getStartingMultiplier, getWinProbability, createDeck } from '$lib/poker';
+  import { getCardDisplay, getHandNotation, getStartingMultiplier, getWinProbability } from '$lib/poker';
   import { fly, fade, scale } from 'svelte/transition';
   import Instructions from './Instructions.svelte';
-
-  // Generate full deck for card picker
-  const deck = createDeck();
+  import CardSelectorOptimized from './CardSelectorOptimized.svelte';
   
   // Card selection state - use stores directly
   $: canPlay = $selectedHole.length === 2 && $bonusBet >= 1000 && $chips >= $bonusBet;
@@ -300,25 +298,11 @@
           {/if}
         </button>
 
-        <!-- Card picker (collapsible) -->
-        <details class="mt-4">
-          <summary class="text-gray-400 text-sm cursor-pointer text-center hover:text-white">
-            Or pick cards from deck ▼
-          </summary>
-          <div class="grid grid-cols-13 gap-1 mt-2 max-h-32 overflow-y-auto">
-            {#each deck as card}
-              {@const c = formatCard(card)}
-              {@const isSelected = $selectedHole.includes(card)}
-              <button
-                on:click={() => toggleCardSelection(card)}
-                class="w-8 h-10 rounded text-xs flex flex-col items-center justify-center {c.isRed ? 'text-red-500' : 'text-black'} {isSelected ? 'bg-yellow-500' : 'bg-white'} hover:opacity-80"
-              >
-                <span class="leading-none">{c.rank}</span>
-                <span class="leading-none text-sm">{c.suit}</span>
-              </button>
-            {/each}
-          </div>
-        </details>
+        <!-- Card picker - optimized two-tier selector -->
+        <div class="mt-4">
+          <div class="text-gray-400 text-sm mb-3">Pick cards from deck</div>
+          <CardSelectorOptimized />
+        </div>
       {/if}
     </div>
   </div>
