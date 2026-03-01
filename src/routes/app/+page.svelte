@@ -351,6 +351,40 @@
     }, 1000);
   }
 
+  // Fast buy functionality for building upgrades
+  let fastBuyTimer: ReturnType<typeof setInterval> | null = null;
+  let fastBuyInterval = 100; // 100ms for fast buying
+  let isHolding = false;
+
+  function startFastBuy(b: any) {
+    if (isHolding) return;
+    isHolding = true;
+    fastBuyTimer = setInterval(() => {
+      const lvl = $v2BuildingLevels[b.id] || 0;
+      const unlocked = isUnlocked(b.id, $v2BuildingLevels, tableCount);
+      const cost = levelCost(b.id, lvl);
+      const actualCost = b.id === 'BuildingExpansion' && $crapsRushDiscountActive
+        ? Math.floor(cost * expansionDiscountMultiplier)
+        : cost;
+      
+      if (unlocked && isFinite(cost) && $chips >= cost) {
+        chips.set($chips - actualCost);
+        v2BuildingLevels.set({ ...$v2BuildingLevels, [b.id]: lvl + 1 });
+        saveGame();
+      } else {
+        stopFastBuy();
+      }
+    }, fastBuyInterval);
+  }
+
+  function stopFastBuy() {
+    isHolding = false;
+    if (fastBuyTimer) {
+      clearInterval(fastBuyTimer);
+      fastBuyTimer = null;
+    }
+  }
+
   function handleProDealersAdUpgrade() {
     if (proDealersAdCooldown > 0 || proDealersDailyCount >= 6) return;
     
@@ -522,6 +556,11 @@
     
     <section class="mb-6">
       <div class="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
+        <div class="px-3 py-2 bg-gray-800 border-b border-gray-700">
+          <h3 class="text-lg font-bold text-yellow-400 uppercase tracking-wide flex items-center gap-2">
+            🏢 BUILDINGS
+          </h3>
+        </div>
         <button
           class="w-full px-3 py-2 flex items-center justify-between bg-gray-800 text-white text-sm"
           on:click={() => boostersOpen = !boostersOpen}
@@ -547,13 +586,23 @@
             {/if}
 
             {#if tableCount >= 2}
-              {#each BUILDINGS as b}
+            {#each BUILDINGS as b}
                 {@const lvl = $v2BuildingLevels[b.id] || 0}
                 {@const unlocked = isUnlocked(b.id, $v2BuildingLevels, tableCount)}
                 {@const cost = levelCost(b.id, lvl)}
-                <div class="p-3 rounded-lg bg-gray-800 border {unlocked && isFinite(cost) && $chips >= cost ? 'border-yellow-500' : 'border-gray-700'}">
+                <div class="p-3 rounded-lg bg-gray-800/95 border border-gray-600/60 shadow-lg transition-all duration-200 hover:border-yellow-500/40 hover:shadow-xl" style="box-shadow: 0 4px 20px rgba(245, 197, 66, 0.15); border: 1px solid rgba(245, 197, 66, 0.3);">
                   <div class="flex items-center justify-between gap-3">
-                    <div class="font-bold text-white truncate">{b.name}</div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-lg">
+                        {#if b.id === 'ProDealers'}♠️
+                        {:else if b.id === 'CardShufflers'}🃏
+                        {:else if b.id === 'TDs'}👑
+                        {:else if b.id === 'Sponsors'}💼
+                        {:else if b.id === 'BuildingExpansion'}🏗️
+                        {/if}
+                      </span>
+                      <div class="font-bold text-white truncate">{b.name}</div>
+                    </div>
                     <div class="text-[11px] font-semibold text-green-300 whitespace-nowrap">
                       +{(b.baseBoost * 100).toFixed(0)}% boost/lvl
                     </div>
@@ -583,7 +632,14 @@
                         v2BuildingLevels.set({ ...$v2BuildingLevels, [b.id]: lvl + 1 });
                         saveGame();
                       }}
-                      class="px-3 py-1.5 rounded bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500 text-xs whitespace-nowrap"
+                      on:mousedown={() => startFastBuy(b)}
+                      on:touchstart={() => startFastBuy(b)}
+                      on:mouseup={() => stopFastBuy()}
+                      on:mouseleave={() => stopFastBuy()}
+                      on:touchend={() => stopFastBuy()}
+                      class="px-3 py-1.5 rounded text-xs whitespace-nowrap transition-all duration-200 {unlocked && isFinite(cost) && $chips >= cost
+                        ? 'bg-gradient-to-b from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-white shadow-md hover:shadow-xl'
+                        : 'bg-gray-700 disabled:bg-gray-900 disabled:text-gray-500'}"
                     >{isFinite(cost) ? `Buy: ${formatNumber(cost)}` : 'Config Pending'}</button>
                   </div>
                   {#if lvl > 300}

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import { pwaInstalled } from '$lib/pwaStore';
   import { aceTokens } from '$lib/stores';
   import { 
@@ -8,12 +7,16 @@
     currentOpponent, 
     isLadderUnlocked, 
     canStartMatch,
-    CPU_PROFILES,
-    leaderboard
-  } from '$lib/headsUpHoldemStore';
+    LADDER_CPU_PROFILES,
+    leaderboard,
+    setCurrentOpponent,
+    type LeaderboardEntry
+  } from '$lib/ladderStore';
+  import HeadsUpHoldemLadderGame from './HeadsUpHoldemLadderGame.svelte';
 
   let modalOpen = false;
   let showLeaderboard = false;
+  let showGame = false;
 
   function openModal() {
     modalOpen = true;
@@ -22,11 +25,16 @@
   function closeModal() {
     modalOpen = false;
     showLeaderboard = false;
+    showGame = false;
   }
 
   function startMatch() {
-    // Navigate to the game page
-    goto('/game');
+    // Start the ladder game (inline, not navigating to /game)
+    showGame = true;
+  }
+
+  function selectOpponent(opponentId: string) {
+    setCurrentOpponent(opponentId);
   }
 
   function openLeaderboard() {
@@ -38,9 +46,6 @@
   }
 
   onMount(() => {
-    // Check if ladder should be unlocked based on some condition
-    // For now, it's unlocked from the start
-    
     // Listen for custom event to open the modal
     window.addEventListener('open-ladder-modal', () => {
       openModal();
@@ -87,10 +92,21 @@
             {/each}
           </div>
         </div>
+      {:else if showGame}
+        <div class="game-container">
+          <HeadsUpHoldemLadderGame />
+        </div>
       {:else}
         <div class="ladder-list">
-          {#each CPU_PROFILES as opponent}
-            <div class="ladder-item" class:unlocked={$ladderState.unlockedTiers >= opponent.tier}>
+          {#each LADDER_CPU_PROFILES as opponent}
+            <div 
+              class="ladder-item" 
+              class:unlocked={$ladderState.unlockedTiers >= opponent.tier}
+              class:selected={$ladderState.currentOpponentId === opponent.id}
+              on:click={() => selectOpponent(opponent.id)}
+              role="button"
+              tabindex="0"
+            >
               <div class="opponent-info">
                 <div class="opponent-portrait">{opponent.portrait}</div>
                 <div class="opponent-details">
@@ -116,7 +132,7 @@
                     </div>
                   </div>
                   {#if $ladderState.currentOpponentId === opponent.id}
-                    <button class="start-match-btn" on:click={startMatch}>
+                    <button class="start-match-btn" on:click|stopPropagation={startMatch}>
                       Start Match
                     </button>
                   {/if}
@@ -261,6 +277,22 @@
   .ladder-item.unlocked {
     border-color: rgba(245, 197, 66, 0.3);
     background: rgba(245, 197, 66, 0.05);
+  }
+
+  .ladder-item.selected {
+    border-color: #f5c542;
+    background: rgba(245, 197, 66, 0.15);
+    box-shadow: 0 0 20px rgba(245, 197, 66, 0.3);
+  }
+
+  .ladder-item:hover {
+    transform: translateX(4px);
+    cursor: pointer;
+  }
+
+  .game-container {
+    max-height: 70vh;
+    overflow-y: auto;
   }
 
   .opponent-info {
