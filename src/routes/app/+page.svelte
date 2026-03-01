@@ -556,11 +556,6 @@
     
     <section class="mb-6">
       <div class="rounded-lg overflow-hidden border border-gray-700 bg-gray-900">
-        <div class="px-3 py-2 bg-gray-800 border-b border-gray-700">
-          <h3 class="text-lg font-bold text-yellow-400 uppercase tracking-wide flex items-center gap-2">
-            🏢 BUILDINGS
-          </h3>
-        </div>
         <button
           class="w-full px-3 py-2 flex items-center justify-between bg-gray-800 text-white text-sm"
           on:click={() => boostersOpen = !boostersOpen}
