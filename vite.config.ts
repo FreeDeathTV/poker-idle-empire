@@ -7,6 +7,7 @@ export default defineConfig({
         sveltekit(),
         SvelteKitPWA({
             manifest: {
+                id: "Idle-Poker-Empire",
                 name: "Poker Idle Empire",
                 short_name: "PokerIdle",
                 description: "Poker Idle Empire - A deterministic idle poker empire builder where you expand, upgrade, and automate your way through escalating rival waves. Build velvet-lined lounges, train AI pros, and conquer tournament circuits in a strategic loop that rewards mastery over mindless tapping.",
@@ -18,6 +19,26 @@ export default defineConfig({
                 categories: ["entertainment", "games", "casino"],
                 lang: "en",
                 scope: "./",
+                dir: "ltr",
+                launch_handler: {
+                    client_mode: "navigate-existing"
+                },
+                shortcuts: [
+                    {
+                        name: "Play Game",
+                        short_name: "Game",
+                        description: "Start playing Poker Idle Empire",
+                        url: "/app",
+                        icons: [{ src: "/icon-192.png", sizes: "192x192" }]
+                    },
+                    {
+                        name: "Shop",
+                        short_name: "Shop",
+                        description: "Visit the in-game shop",
+                        url: "/shop",
+                        icons: [{ src: "/icon-192.png", sizes: "192x192" }]
+                    }
+                ],
                 icons: [
                     {
                         src: "/icon-144.png",
