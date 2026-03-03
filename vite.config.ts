@@ -9,7 +9,7 @@ export default defineConfig({
             manifest: {
                 id: "Idle-Poker-Empire",
                 name: "Poker Idle Empire",
-                short_name: "PokerIdle",
+                short_name: "Idle-Poker-Empire",
                 description: "Poker Idle Empire - A deterministic idle poker empire builder where you expand, upgrade, and automate your way through escalating rival waves. Build velvet-lined lounges, train AI pros, and conquer tournament circuits in a strategic loop that rewards mastery over mindless tapping.",
                 start_url: "/",
                 display: "standalone",
