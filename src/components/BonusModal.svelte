@@ -59,7 +59,7 @@
 </script>
 
 {#if $bonusVisible}
-  <div class="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-2 overflow-y-auto">
+  <div class="fixed inset-0 bg-black/90 flex items-center justify-center z-40 p-2 overflow-y-auto">
     <div class="bg-gray-800 rounded-xl p-4 max-w-lg w-full border-2 border-yellow-500 max-h-[95vh] overflow-y-auto">
       
       {#if $bonusResult}

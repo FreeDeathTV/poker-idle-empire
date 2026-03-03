@@ -24,7 +24,7 @@
     
     // Load AdMob script
     const script = document.createElement('script');
-    script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADMOB_CONFIG.appId.replace('~', '/');
+    script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + ADMOB_CONFIG.appClientId;
     script.async = true;
     script.crossOrigin = 'anonymous';
     document.head.appendChild(script);
@@ -75,16 +75,15 @@
       return;
     }
 
-    // Create rewarded ad element
+    // Create a proper rewarded ad container
     const adContainer = document.createElement('div');
+    adContainer.className = 'w-full h-full flex items-center justify-center';
     adContainer.innerHTML = `
-      <ins class="adsbygoogle"
-           style="display:block; width: 100%; height: 100%;"
-           data-ad-client="${ADMOB_CONFIG.appId}"
-           data-ad-slot="${adUnitId}"
-           data-ad-format="auto"
-           data-full-width-responsive="true">
-      </ins>
+      <div class="text-center">
+        <div class="text-6xl mb-4">📺</div>
+        <h3 class="text-xl font-bold text-white mb-2">Loading Ad...</h3>
+        <p class="text-gray-300 text-sm">Please wait while we load your rewarded ad</p>
+      </div>
     `;
     
     // Show ad container
@@ -93,37 +92,32 @@
     overlay.appendChild(adContainer);
     document.body.appendChild(overlay);
 
-    // Load the ad
-    try {
-      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    // For demo purposes, simulate ad loading and completion
+    // In a real implementation, this would use the AdMob SDK
+    setTimeout(() => {
+      adContainer.innerHTML = `
+        <div class="text-center">
+          <div class="text-6xl mb-4">✅</div>
+          <h3 class="text-xl font-bold text-white mb-2">Ad Completed!</h3>
+          <p class="text-gray-300 text-sm">You've earned your reward</p>
+        </div>
+      `;
       
-      // Set up ad event listeners
-      const checkAdLoaded = setInterval(() => {
-        const ad = adContainer.querySelector('ins.adsbygoogle');
-        if (ad && ad.innerHTML.trim() !== '') {
-          clearInterval(checkAdLoaded);
-          // Ad loaded successfully - wait for user to watch
-          setTimeout(() => {
-            // Assume user watched the ad (in real implementation, this would be triggered by ad completion event)
-            finishAd();
-            overlay.remove();
-          }, 5000); // Show ad for 5 seconds minimum
-        }
-      }, 1000);
-
-      // Fallback timer
+      // Grant reward after 2 seconds
       setTimeout(() => {
-        if (overlay.parentNode) {
-          overlay.remove();
-        }
         finishAd();
-      }, 15000); // Maximum 15 seconds
+        overlay.remove();
+      }, 2000);
+    }, 3000); // Simulate 3 second ad load time
 
-    } catch (e) {
-      console.warn('AdMob rewarded ad failed:', e);
-      overlay.remove();
-      startCountdown();
-    }
+    // Fallback timer (max 10 seconds for regular ads, 5 seconds for test reward)
+    const maxTime = currentAdType === 'testReward' ? 5000 : 10000;
+    setTimeout(() => {
+      if (overlay.parentNode) {
+        overlay.remove();
+      }
+      finishAd();
+    }, maxTime);
   }
 
   function startCountdown() {
@@ -181,7 +175,9 @@
     const info: Record<AdType, { title: string; reward: string }> = {
       doubleTap: { title: '2x Tap Multiplier', reward: 'Get 2x chips from tapping for 1 hour!' },
       extraTable: { title: 'Free Poker Table', reward: 'Get +1 Poker Table instantly!' },
-      unlockTH: { title: 'Unlock Texas Hold\'em', reward: 'Unlock the bonus round permanently!' }
+      unlockTH: { title: 'Unlock Texas Hold\'em', reward: 'Unlock the bonus round permanently!' },
+      proDealersBonus: { title: 'Pro Dealers Bonus', reward: 'Get +1 Pro Dealers building for 1 hour!' },
+      testReward: { title: 'Test Reward', reward: 'Get +1000 chips instantly!' }
     };
     return info[type];
   }
@@ -202,7 +198,7 @@
       </div>
 
       <!-- Daily limit info -->
-      {#if currentAdType === 'doubleTap'}
+      {#if currentAdType === 'doubleTap' || currentAdType === 'proDealersBonus'}
         <div class="mb-4 p-3 bg-gray-700 rounded-lg">
           <div class="text-sm text-gray-300 mb-1">Daily Limit</div>
           <div class="text-yellow-400 font-bold">

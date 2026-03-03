@@ -2,37 +2,38 @@
   import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import {
-    chips,
-    cps,
-    aceTokens,
-    buildings,
-    adState,
-    thUnlocked,
-    tapMultiplier,
-    formatNumber,
-    v2BuildingLevels,
-    prestigePoints,
-    signingBonusTotal,
-    initializeDebugMode,
-    debugEnabled,
-    slotsUnlocked,
-    setChaseAceUnlocked,
-    openChaseAce,
-    autoTapperUnlocked,
-    autoTapperEnabled,
-    currentThemeIndex,
-    chaseAceState,
-    personalityToasts,
-    rouletteUnlocked,
-    crapsRushState,
-    crapsRushDiscountActive,
-    crapsRushRemainingMinutes,
-    setCrapsRushUnlocked,
-    openCrapsRush,
-    tickCrapsRushTimer,
-    resetFlowActive
-  } from '$lib/stores';
+import {
+  chips,
+  cps,
+  aceTokens,
+  buildings,
+  adState,
+  adLimits,
+  thUnlocked,
+  tapMultiplier,
+  formatNumber,
+  v2BuildingLevels,
+  prestigePoints,
+  signingBonusTotal,
+  initializeDebugMode,
+  debugEnabled,
+  slotsUnlocked,
+  setChaseAceUnlocked,
+  openChaseAce,
+  autoTapperUnlocked,
+  autoTapperEnabled,
+  currentThemeIndex,
+  chaseAceState,
+  personalityToasts,
+  rouletteUnlocked,
+  crapsRushState,
+  crapsRushDiscountActive,
+  crapsRushRemainingMinutes,
+  setCrapsRushUnlocked,
+  openCrapsRush,
+  tickCrapsRushTimer,
+  resetFlowActive
+} from '$lib/stores';
   import ChipOdometer from '../../components/ChipOdometer.svelte';
   import {
     loadGame,
@@ -226,6 +227,7 @@
   }
 
   onMount(() => {
+    console.log('App mounting, loading game...');
     loadGame();
     markDailyOpenApp();
     initializeDebugMode();
@@ -234,6 +236,7 @@
     turboToastReady = true;
     lastChaseResolvedAt = $chaseAceState.lastResolvedAt;
     chaseHookReady = true;
+    
     appToastHandler = (event: Event) => {
       const detail = (event as CustomEvent<{ text?: string }>).detail;
       if (!detail?.text) return;
@@ -300,13 +303,15 @@
     startAdWatch(type);
   }
 
-  const adTypes: AdType[] = ['doubleTap', 'extraTable', 'unlockTH'];
+  const adTypes: AdType[] = ['doubleTap', 'extraTable', 'unlockTH', 'proDealersBonus', 'testReward'];
 
   function getAdButtonInfo(type: AdType) {
     const info: Record<AdType, { emoji: string; title: string; description: string }> = {
       doubleTap: { emoji: '\u26A1', title: '2x Tap', description: '5 min' },
       extraTable: { emoji: '\uD83C\uDCCF', title: '+1 Table', description: 'Instant' },
-      unlockTH: { emoji: '\uD83C\uDFB0', title: 'Unlock Bonus', description: 'Permanent' }
+      unlockTH: { emoji: '\uD83C\uDFB0', title: 'Unlock Bonus', description: 'Permanent' },
+      proDealersBonus: { emoji: '♠️', title: 'Pro Dealers', description: '1hr' },
+      testReward: { emoji: '🧪', title: 'Test Reward', description: '5 sec' }
     };
     return info[type];
   }
@@ -334,21 +339,6 @@
       case 'BuildingExpansion': return 'BuildingExpansion';
       default: return 'ProDealers';
     }
-  }
-
-  // AdMob bonus upgrade functionality for Pro Dealers
-  let proDealersAdCooldown = 0;
-  let proDealersDailyCount = 0;
-  let proDealersAdTimer: ReturnType<typeof setInterval> | null = null;
-
-  $: if (proDealersAdCooldown > 0) {
-    proDealersAdTimer = setInterval(() => {
-      proDealersAdCooldown = Math.max(0, proDealersAdCooldown - 1);
-      if (proDealersAdCooldown === 0 && proDealersAdTimer) {
-        clearInterval(proDealersAdTimer);
-        proDealersAdTimer = null;
-      }
-    }, 1000);
   }
 
   // Fast buy functionality for building upgrades
@@ -383,44 +373,6 @@
       clearInterval(fastBuyTimer);
       fastBuyTimer = null;
     }
-  }
-
-  function handleProDealersAdUpgrade() {
-    if (proDealersAdCooldown > 0 || proDealersDailyCount >= 6) return;
-    
-    // Start AdMob video ad
-    startAdWatch('extraTable'); // Using existing ad type for simplicity
-    
-    // Handle ad completion callback
-    const handleAdComplete = () => {
-      // Add 1 Pro Dealers building
-      const currentLevel = $v2BuildingLevels.ProDealers || 0;
-      v2BuildingLevels.set({ ...$v2BuildingLevels, ProDealers: currentLevel + 1 });
-      proDealersDailyCount++;
-      proDealersAdCooldown = 300; // 5 minute cooldown
-      pushToast('+1 Pro Dealers from Ad!');
-      saveGame();
-      
-      // Clean up listener
-      window.removeEventListener('adComplete', handleAdComplete as EventListener);
-    };
-    
-    window.addEventListener('adComplete', handleAdComplete as EventListener);
-  }
-
-  function getProDealersAdStatus() {
-    if (proDealersDailyCount >= 6) {
-      return { text: 'Daily limit reached', disabled: true };
-    }
-    if (proDealersAdCooldown > 0) {
-      const minutes = Math.floor(proDealersAdCooldown / 60);
-      const seconds = proDealersAdCooldown % 60;
-      return { 
-        text: `Cooldown: ${minutes}:${seconds.toString().padStart(2, '0')}`, 
-        disabled: true 
-      };
-    }
-    return { text: `Watch Ad (+1) - ${proDealersDailyCount}/6`, disabled: false };
   }
 </script>
 
@@ -490,7 +442,7 @@
         </div>
       </div>
     </div>
-    <div class="h-px w-full divider-gold"></div>
+  <div class="h-px w-full divider-gold"></div>
     {#if showDailySheet}
       <div class="header-daily-panel">
         <div class="container mx-auto px-3 pb-3 max-w-md">
@@ -499,6 +451,30 @@
       </div>
     {/if}
   </header>
+
+  <!-- Stacked Bonuses Section -->
+  <section class="container mx-auto px-4 max-w-md mb-4">
+    <div class="bonuses-container">
+      <div class="bonus-card multiplier-card">
+        <div class="bonus-header">
+          <span class="bonus-label">Prestige Multiplier</span>
+        </div>
+        <div class="bonus-value multiplier-value" class:pulse={true}>
+          x{prestigeMultiplier($prestigePoints).toFixed(2)}
+        </div>
+      </div>
+      {#if $signingBonusTotal > 0}
+        <div class="bonus-card permanent-card">
+          <div class="bonus-header">
+            <span class="bonus-label">Permanent Bonus</span>
+          </div>
+          <div class="bonus-value permanent-value" class:glow={true}>
+            +{($signingBonusTotal).toFixed(1)}%
+          </div>
+        </div>
+      {/if}
+    </div>
+  </section>
 
   <div class="fixed top-2 left-2 z-50 flex flex-col gap-1">
     <button
@@ -539,7 +515,7 @@
             on:click={toggleTurboTapper}
             class="turbo-toggle-btn"
           >
-            ⚙️ Turbo Tapper: {$autoTapperEnabled ? 'ON' : 'OFF'}
+            ⚡ Turbo: {$autoTapperEnabled ? 'ON' : 'OFF'}
           </button>
         {/if}
       </div>
@@ -648,13 +624,13 @@
                   {#if b.id === 'ProDealers' && unlocked}
                     <div class="mt-2 pt-2 border-t border-gray-700">
                       <button
-                        on:click={handleProDealersAdUpgrade}
-                        disabled={getProDealersAdStatus().disabled}
-                        class="w-full py-2 px-3 rounded text-xs font-bold transition-colors {getProDealersAdStatus().disabled
-                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                          : 'bg-blue-600 hover:bg-blue-500 text-white'}"
+                        on:click={() => handleAdClick('proDealersBonus')}
+                        disabled={!$adState?.proDealersBonus?.available}
+                        class="w-full py-2 px-3 rounded text-xs font-bold transition-colors {$adState?.proDealersBonus?.available
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                          : 'bg-gray-700 text-gray-400 cursor-not-allowed'}"
                       >
-                        {getProDealersAdStatus().text}
+                        {$adState?.proDealersBonus?.available ? 'Watch Ad (+1) - ' + $adLimits?.proDealersBonus?.dailyCount + '/6' : 'Cooldown: ' + formatCooldown(getAdCooldown('proDealersBonus'))}
                       </button>
                     </div>
                   {/if}
@@ -662,10 +638,6 @@
               {/each}
             {/if}
 
-            <div class="mt-1 text-xs text-gray-400 text-center">Prestige Multiplier: x{prestigeMultiplier($prestigePoints).toFixed(2)}</div>
-            {#if $signingBonusTotal > 0}
-              <div class="mt-1 text-xs text-amber-400 text-center">Permanent Bonus: +{($signingBonusTotal).toFixed(1)}%</div>
-            {/if}
           </div>
         {/if}
       </div>
@@ -776,11 +748,13 @@
         <span>📺</span> Ad Rewards
       </h2>
       <div class="grid grid-cols-3 gap-2">
-        {#each adTypes as adType}
-          {@const ad = $adState[adType]}
+      {#each adTypes as adType}
           {@const info = getAdButtonInfo(adType)}
           {@const cooldown = getAdCooldown(adType)}
           {@const isLocked = adType === 'unlockTH' && $thUnlocked}
+          {@const ad = $adState[adType] || { available: false, nextAvailable: 0 }}
+          {@const isProDealers = adType === 'proDealersBonus'}
+          
           <button
             on:click={() => handleAdClick(adType)}
             disabled={!ad.available || isLocked}
@@ -880,30 +854,64 @@
     color: #1b1303;
     font-weight: 800;
     letter-spacing: 1px;
-    padding: 18px 28px;
-    border-radius: 14px;
-    border: 2px solid #74521b;
-    box-shadow: 0 8px 18px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.6);
+    padding: 20px 32px;
+    border-radius: 16px;
+    border: 3px solid #74521b;
+    box-shadow: 
+      0 12px 24px rgba(0,0,0,0.45),
+      inset 0 2px 0 rgba(255,255,255,0.8),
+      inset 0 -4px 8px rgba(0,0,0,0.35),
+      0 0 0 0 rgba(250, 204, 21, 0);
     touch-action: manipulation;
+    transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
   }
   .deal-btn:active {
-    transform: translate(-50%, -50%) scale(0.97);
+    transform: translate(-50%, -50%) scale(0.95);
+    box-shadow: 
+      0 6px 12px rgba(0,0,0,0.4),
+      inset 0 2px 0 rgba(255,255,255,0.6),
+      inset 0 -2px 4px rgba(0,0,0,0.25),
+      0 0 0 0 rgba(250, 204, 21, 0);
   }
   .deal-btn.turbo-active {
     animation: turbo-tap-pulse 1.1s ease-in-out infinite;
-    box-shadow: 0 8px 18px rgba(0,0,0,0.4), inset 0 2px 0 rgba(255,255,255,0.6), 0 0 22px rgba(250, 204, 21, 0.45);
+    box-shadow: 
+      0 12px 24px rgba(0,0,0,0.45),
+      inset 0 2px 0 rgba(255,255,255,0.8),
+      inset 0 -4px 8px rgba(0,0,0,0.35),
+      0 0 28px rgba(250, 204, 21, 0.6);
+  }
+  .deal-btn:hover {
+    transform: translate(-50%, -50%) scale(1.02);
+    box-shadow: 
+      0 14px 28px rgba(0,0,0,0.45),
+      inset 0 2px 0 rgba(255,255,255,0.8),
+      inset 0 -4px 8px rgba(0,0,0,0.35),
+      0 0 16px rgba(250, 204, 21, 0.4);
   }
   .turbo-toggle-btn {
     position: absolute;
-    right: 12px;
-    bottom: 12px;
+    right: 13px;
+    bottom: 65px;
     border-radius: 9999px;
     border: 1px solid #facc15;
-    background: rgba(17, 24, 39, 0.85);
+    background: rgba(17, 24, 39, 0.9);
     color: #f8fafc;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
-    padding: 6px 10px;
+    padding: 4px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    transition: all 0.2s ease;
+    z-index: 10;
+  }
+  .turbo-toggle-btn:hover {
+    background: rgba(17, 24, 39, 0.95);
+    transform: scale(1.05);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .turbo-toggle-btn:active {
+    transform: scale(0.95);
   }
   .ace-token-pill {
     display: inline-flex;
@@ -1105,5 +1113,152 @@
   .adsense-content-container ins.adsbygoogle {
     max-width: 100%;
     width: 100%;
+  }
+
+  /* Stacked Bonuses Premium Styling */
+  .bonuses-container {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .bonus-card {
+    flex: 1;
+    min-width: 120px;
+    max-width: 160px;
+    background: linear-gradient(180deg, rgba(255,215,0,0.95), rgba(255,193,7,0.85));
+    border: 2px solid rgba(255,215,0,0.6);
+    border-radius: 12px;
+    box-shadow: 
+      0 6px 16px rgba(255,215,0,0.3),
+      inset 0 1px 0 rgba(255,255,255,0.8),
+      inset 0 -3px 8px rgba(0,0,0,0.3);
+    padding: 8px 10px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(2px);
+  }
+
+  .bonus-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  }
+
+  .bonus-header {
+    margin-bottom: 4px;
+  }
+
+  .bonus-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: #1f1900;
+    text-transform: uppercase;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.6);
+    display: block;
+  }
+
+  .bonus-value {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    color: #1f1900;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    display: block;
+  }
+
+  .multiplier-card {
+    border-color: rgba(255,215,0,0.7);
+    box-shadow: 
+      0 6px 16px rgba(255,215,0,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.8),
+      inset 0 -3px 8px rgba(0,0,0,0.35);
+  }
+
+  .permanent-card {
+    border-color: rgba(245,158,11,0.7);
+    box-shadow: 
+      0 6px 16px rgba(245,158,11,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.8),
+      inset 0 -3px 8px rgba(0,0,0,0.35);
+  }
+
+  .multiplier-value {
+    color: #000000 !important;
+    font-weight: 900;
+  }
+
+  .permanent-value {
+    color: #000000 !important;
+    font-weight: 900;
+  }
+
+  /* Micro-Animations */
+  .multiplier-value.pulse {
+    animation: multiplier-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes multiplier-pulse {
+    0%, 100% { 
+      transform: scale(1);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    50% { 
+      transform: scale(1.05);
+      text-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 10px rgba(255,215,0,0.6);
+    }
+  }
+
+  .permanent-value.glow {
+    animation: bonus-glow 1.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes bonus-glow {
+    0% { 
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 0 4px rgba(245, 158, 11, 0.3);
+    }
+    100% { 
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 0 12px rgba(245, 158, 11, 0.8), 0 0 18px rgba(245, 158, 11, 0.4);
+    }
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 400px) {
+    .bonuses-container {
+      gap: 6px;
+    }
+    .bonus-card {
+      min-width: 110px;
+      max-width: 140px;
+      padding: 7px 8px;
+    }
+    .bonus-label {
+      font-size: 9px;
+    }
+    .bonus-value {
+      font-size: 12px;
+    }
+  }
+
+  @media (max-width: 320px) {
+    .bonuses-container {
+      gap: 4px;
+    }
+    .bonus-card {
+      min-width: 100px;
+      max-width: 120px;
+      padding: 6px 7px;
+    }
+    .bonus-label {
+      font-size: 8px;
+    }
+    .bonus-value {
+      font-size: 11px;
+    }
   }
 </style>

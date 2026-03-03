@@ -19,7 +19,7 @@ export const buildings = writable<Building[]>([
   { name: 'Poker Table', count: 0, cost: 10, cps: 1 }
 ]);
 
-export type AdType = 'doubleTap' | 'extraTable' | 'unlockTH';
+export type AdType = 'doubleTap' | 'extraTable' | 'unlockTH' | 'proDealersBonus' | 'testReward';
 
 export interface AdItem {
   available: boolean;
@@ -32,16 +32,26 @@ export interface AdLimits {
     dailyCount: number;
     lastResetTime: number;
   };
+  proDealersBonus: {
+    dailyCount: number;
+    lastResetTime: number;
+  };
 }
 
 export const adState = writable<Record<AdType, AdItem>>({
   doubleTap: { available: true, nextAvailable: 0 },
   extraTable: { available: true, nextAvailable: 0 },
-  unlockTH: { available: true, nextAvailable: 0 }
+  unlockTH: { available: true, nextAvailable: 0 },
+  proDealersBonus: { available: true, nextAvailable: 0 },
+  testReward: { available: true, nextAvailable: 0 }
 });
 
 export const adLimits = writable<AdLimits>({
   doubleTap: {
+    dailyCount: 0,
+    lastResetTime: Date.now()
+  },
+  proDealersBonus: {
     dailyCount: 0,
     lastResetTime: Date.now()
   }

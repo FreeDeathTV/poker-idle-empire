@@ -400,7 +400,7 @@ export function buyBuilding(index: number) {
   if (!b) return;
   const current = get(chips);
   if (current < b.cost) return false;
-  
+
   chips.set(current - b.cost);
   b.count += 1;
   cps.update((v) => v + b.cps);
@@ -438,17 +438,21 @@ export function startAdWatch(type: AdType) {
 export function grantAdReward(type: AdType) {
   const ads = get(adState);
   if (!ads[type]) return;
-  
+
   // Set cooldown based on ad type
   let cooldownMs = EIGHT_HOURS_MS;
   if (type === 'doubleTap') {
     cooldownMs = ONE_HOUR_MS; // 1 hour cooldown for double tap
+  } else if (type === 'proDealersBonus') {
+    cooldownMs = ONE_HOUR_MS; // 1 hour cooldown for Pro Dealers bonus
+  } else if (type === 'testReward') {
+    cooldownMs = 5000; // 5 second cooldown for test reward
   }
-  
+
   ads[type].available = false;
   ads[type].nextAvailable = Date.now() + cooldownMs;
   adState.set(ads);
-  
+
   if (type === 'doubleTap') {
     tapMultiplier.set(2);
     // Reset after 1 hour
@@ -465,10 +469,26 @@ export function grantAdReward(type: AdType) {
     }
   } else if (type === 'unlockTH') {
     thUnlocked.set(true);
+  } else if (type === 'proDealersBonus') {
+    // Add 1 ProDealers building for 1 hour
+    const currentLevel = get(v2BuildingLevels).ProDealers || 0;
+    v2BuildingLevels.set({ ...get(v2BuildingLevels), ProDealers: currentLevel + 1 });
+
+    // Reset after 1 hour
+    setTimeout(() => {
+      const currentLevelAfterTimeout = get(v2BuildingLevels).ProDealers || 0;
+      if (currentLevelAfterTimeout > currentLevel) {
+        v2BuildingLevels.set({ ...get(v2BuildingLevels), ProDealers: currentLevelAfterTimeout - 1 });
+      }
+    }, ONE_HOUR_MS);
+  } else if (type === 'testReward') {
+    // Test reward: +1000 chips with 5 second cooldown
+    chips.update(n => n + 1000);
+    enqueuePersonalityToast('Test Reward: +1000 chips!');
   }
 
   markDailyAdWatch();
-  
+
   watchingAd.set('none');
   saveGame();
 }
@@ -478,12 +498,20 @@ function checkDailyAdLimits(): void {
   const now = Date.now();
   const limits = get(adLimits);
   const todayKey = getLocalDateKey(now);
-  
-  // Check if we need to reset the daily counter
+
+  // Check if we need to reset the daily counter for doubleTap
   const lastResetKey = getLocalDateKey(limits.doubleTap.lastResetTime);
   if (todayKey !== lastResetKey) {
     limits.doubleTap.dailyCount = 0;
     limits.doubleTap.lastResetTime = now;
+    adLimits.set(limits);
+  }
+
+  // Check if we need to reset the daily counter for proDealersBonus
+  const lastResetKeyProDealers = getLocalDateKey(limits.proDealersBonus.lastResetTime);
+  if (todayKey !== lastResetKeyProDealers) {
+    limits.proDealersBonus.dailyCount = 0;
+    limits.proDealersBonus.lastResetTime = now;
     adLimits.set(limits);
   }
 }
@@ -492,11 +520,15 @@ function checkDailyAdLimits(): void {
 export function canWatchAdToday(type: AdType): boolean {
   checkDailyAdLimits();
   const limits = get(adLimits);
-  
+
   if (type === 'doubleTap') {
     return limits.doubleTap.dailyCount < MAX_DAILY_ADS;
   }
-  
+
+  if (type === 'proDealersBonus') {
+    return limits.proDealersBonus.dailyCount < 6;
+  }
+
   // For other ad types, no daily limit
   return true;
 }
@@ -508,17 +540,27 @@ export function incrementAdCount(type: AdType): void {
     limits.doubleTap.dailyCount += 1;
     adLimits.set(limits);
   }
+
+  if (type === 'proDealersBonus') {
+    const limits = get(adLimits);
+    limits.proDealersBonus.dailyCount += 1;
+    adLimits.set(limits);
+  }
 }
 
 // Get remaining ads for today
 export function getRemainingAdsToday(type: AdType): number {
   checkDailyAdLimits();
   const limits = get(adLimits);
-  
+
   if (type === 'doubleTap') {
     return Math.max(0, MAX_DAILY_ADS - limits.doubleTap.dailyCount);
   }
-  
+
+  if (type === 'proDealersBonus') {
+    return Math.max(0, 6 - limits.proDealersBonus.dailyCount);
+  }
+
   // For other ad types, return a large number (no limit)
   return 999;
 }
@@ -597,7 +639,17 @@ export function loadGame() {
         aceTokenPassiveProgressSeconds.set(data.aceTokenPassiveProgressSeconds);
       }
       if (Array.isArray(data.buildings)) buildings.set(data.buildings);
-      if (data.adState) adState.set(data.adState);
+      if (data.adState) {
+        // Ensure all ad types are included in the loaded state
+        const loadedAdState = data.adState;
+        if (!loadedAdState.proDealersBonus) {
+          loadedAdState.proDealersBonus = { available: true, nextAvailable: 0 };
+        }
+        if (!loadedAdState.testReward) {
+          loadedAdState.testReward = { available: true, nextAvailable: 0 };
+        }
+        adState.set(loadedAdState);
+      }
       if (typeof data.thUnlocked === 'boolean') thUnlocked.set(data.thUnlocked);
       if (typeof data.autoTapperUnlocked === 'boolean') autoTapperUnlocked.set(data.autoTapperUnlocked);
       if (typeof data.autoTapperEnabled === 'boolean') autoTapperEnabled.set(data.autoTapperEnabled);
@@ -727,24 +779,24 @@ export function playBonus() {
   const hole = get(selectedHole);
   const bet = get(bonusBet);
   const currentChips = get(chips);
-  
+
   if (hole.length !== 2) return false;
   if (bet < 1000) return false;
   if (currentChips < bet) return false;
-  
+
   // Deduct bet
   chips.set(currentChips - bet);
-  
+
   // Play the round
   const result = playBonusRound(hole, bet);
-  
+
   // Add payout if won
   if (result.payout > 0) {
     chips.update(n => n + result.payout);
   }
 
   queueBonusPersonalityToasts(result.playerHole, result.playerWins, result.playerHand);
-  
+
   bonusResult.set(result);
   saveGame();
   return true;

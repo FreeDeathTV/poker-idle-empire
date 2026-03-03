@@ -77,7 +77,7 @@ export function getDef(id: BuildingId): BuildingDef | undefined {
 export function isUnlocked(id: BuildingId, state: Record<BuildingId, number>, pokerTables: number): boolean {
   const def = getDef(id);
   if (!def) return false;
-  if (id === 'ProDealers') return pokerTables >= 10;
+  if (id === 'ProDealers') return pokerTables >= 1; // Changed from 10 to 1
   if (!def.prereqBuildingId) return false;
   const level = state[def.prereqBuildingId] || 0;
   return level >= def.prereqLevelRequired;
