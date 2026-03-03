@@ -1,17 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-		<meta name="theme-color" content="#0a0a0a" />
-		<link rel="manifest" href="/manifest.webmanifest" />
-		<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4126734833336979"
-			crossorigin="anonymous"></script>
-		<meta name="google-adsense-account" content="ca-pub-4126734833336979">
-		%sveltekit.head%
-	</head>
-	<body data-sveltekit-preload-data="hover">
-		<div style="display: contents">%sveltekit.body%</div>
-	</body>
+
+<head>
+	<meta charset="utf-8" />
+	<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+	<meta name="theme-color" content="#0a0a0a" />
+	<link rel="manifest" href="/manifest.webmanifest" />
+	<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4126734833336979"
+		crossorigin="anonymous"></script>
+	<meta name="google-adsense-account" content="ca-pub-4126734833336979">
+	<script>
+		// Register PWABuilder service worker for compliance
+		if ('serviceWorker' in navigator) {
+			window.addEventListener('load', async () => {
+				try {
+					// First try to register the PWABuilder service worker
+					const pwabuilderRegistration = await navigator.serviceWorker.register('/pwabuilder-sw.js', { scope: '/' });
+					console.log('PWABuilder SW registered successfully');
+				} catch (error) {
+					console.log('PWABuilder SW registration failed:', error);
+
+					// Fallback to the main service worker if PWABuilder fails
+					try {
+						const mainRegistration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+						console.log('Main SW registered as fallback');
+					} catch (fallbackError) {
+						console.log('Main SW registration also failed:', fallbackError);
+					}
+				}
+			});
+		}
+	</script>
+	%sveltekit.head%
+</head>
+
+<body data-sveltekit-preload-data="hover">
+	<div style="display: contents">%sveltekit.body%</div>
+</body>
+
 </html>

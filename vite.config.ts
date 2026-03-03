@@ -109,7 +109,28 @@ export default defineConfig({
                             },
                         },
                     },
+                    {
+                        urlPattern: /pwabuilder-sw\.js$/,
+                        handler: 'NetworkFirst',
+                        options: {
+                            cacheName: 'pwabuilder-sw',
+                            expiration: {
+                                maxEntries: 1,
+                                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+                            },
+                        },
+                    },
                 ],
+                // Ensure pwabuilder-sw.js is included in the precache
+                additionalManifestEntries: [
+                    {
+                        url: 'pwabuilder-sw.js',
+                        revision: '1'
+                    }
+                ],
+                // Configure to serve service worker files correctly
+                navigateFallback: '/index.html',
+                navigateFallbackDenylist: [/^\/pwabuilder-sw\.js$/],
             },
             devOptions: {
                 enabled: true,

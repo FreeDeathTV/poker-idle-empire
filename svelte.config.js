@@ -12,7 +12,12 @@ const config = {
 			fallback: 'index.html',
 			precompress: false,
 			strict: false
-		})
+		}),
+		// Ensure service worker files are served correctly
+		files: {
+			assets: 'static',
+			serviceWorker: 'static/sw.js'
+		}
 	}
 };
 
