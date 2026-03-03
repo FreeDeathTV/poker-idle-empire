@@ -83,7 +83,38 @@ export default defineConfig({
                     }
                 ]
             },
-            registerType: 'autoUpdate'
+            registerType: 'autoUpdate',
+            workbox: {
+                globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+                runtimeCaching: [
+                    {
+                        urlPattern: ({ url }) => url.pathname.startsWith('/'),
+                        handler: 'StaleWhileRevalidate',
+                        options: {
+                            cacheName: 'app-shell',
+                            expiration: {
+                                maxEntries: 50,
+                                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                            },
+                        },
+                    },
+                    {
+                        urlPattern: /\.(png|jpg|jpeg|svg|gif)$/,
+                        handler: 'CacheFirst',
+                        options: {
+                            cacheName: 'images',
+                            expiration: {
+                                maxEntries: 100,
+                                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                            },
+                        },
+                    },
+                ],
+            },
+            devOptions: {
+                enabled: true,
+                type: 'module',
+            }
         })
     ]
 });
